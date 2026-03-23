@@ -1,0 +1,132 @@
+.zone {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  width: 100dvw;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  transition:
+    background-color var(--transition-basic),
+    border-color var(--transition-basic);
+}
+
+.zone:focus-visible {
+  outline: none;
+}
+
+.zone:focus-visible::before {
+  position: absolute;
+  inset: 12px;
+  z-index: 1;
+
+  border-radius: var(--border-radius-panels);
+  outline: var(--focus-outline);
+  outline-offset: 3px;
+
+  content: "";
+  pointer-events: none;
+}
+
+.zone.dragging {
+  background-color: color-mix(in oklab, var(--color-focus) 12%, transparent);
+}
+
+.empty {
+  position: absolute;
+  inset: 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+
+  font-size: var(--font-size-header);
+
+  border: 1px dashed color-mix(in oklab, var(--color-primary) 50%, transparent);
+  border-radius: var(--border-radius-panels);
+}
+
+.select {
+  padding: 0;
+  margin: 0;
+
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+
+  cursor: pointer;
+
+  background: none;
+  border: none;
+
+  pointer-events: auto;
+
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-primary) 10%,
+    transparent
+  );
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.select:hover {
+  text-decoration-color: var(--color-primary);
+}
+
+.formats {
+  color: var(--color-secondary);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-basic);
+}
+
+.zone.dragging > span,
+.zone.dragging > div {
+  pointer-events: none;
+}
+
+.dropHint {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #000;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-header);
+  text-align: center;
+
+  background-color: var(--color-base);
+  opacity: 0;
+
+  transition:
+    opacity var(--transition-basic),
+    background-color var(--transition-basic);
+
+  pointer-events: none;
+}
+
+.dropHint::before {
+  position: absolute;
+  inset: 12px;
+
+  border: 1px dashed #000;
+  border-radius: var(--border-radius-panels);
+
+  content: "";
+}
+
+.zone.dragging .dropHint {
+  background-color: var(--color-focus);
+  opacity: 1;
+}

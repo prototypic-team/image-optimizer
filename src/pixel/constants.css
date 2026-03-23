@@ -1,0 +1,44 @@
+:root {
+  --color-base: #fefefe;
+  --color-primary: #000;
+  --color-secondary: rgb(0 0 0 / 40%);
+  --color-divider: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  --color-focus: hsl(48deg 98% 58%);
+
+  /* Fonts */
+  --font-size-title: 32px;
+  --font-size-header: 22px;
+  --font-size-large: 20px;
+  --font-size-basic: 15px;
+  --font-size-small: 12px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+
+  /* Borders */
+  --border-radius-controls: 4px;
+  --border-radius-panels: 8px;
+  --height-controls-small: 26px;
+
+  /* Transitions */
+  --transition-active: 0.07s ease-out;
+  --transition-basic: 0.1s ease-in-out;
+
+  /* Z-indices */
+  --z-index-menu: 1000;
+  --z-index-dialog: 999;
+  --z-index-focus: 10;
+
+  /* Focus */
+  --focus-outline-style: 3px solid;
+  --focus-outline: 3px solid var(--color-focus);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-base: #121212;
+    --color-primary: #fefefe;
+    --color-secondary: rgb(255 255 255 / 60%);
+    --color-focus: hsl(42deg 95% 59%);
+  }
+}

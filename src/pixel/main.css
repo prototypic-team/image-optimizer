@@ -1,0 +1,62 @@
+@import "./constants.css";
+@import "./common.css";
+
+html {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  color: var(--color-primary);
+  font-size: var(--font-size-basic);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  line-height: 1.4;
+  background-color: var(--color-base);
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+body,
+section,
+nav,
+main,
+ul,
+ol,
+li {
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+a {
+  color: currentcolor;
+  transition: text-decoration-color 0.2s ease-in-out;
+  text-decoration-color: color-mix(in oklab, currentcolor 20%, transparent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+a:hover {
+  transition: none;
+  text-decoration-color: currentcolor;
+}
+
+::selection {
+  color: #000;
+  background-color: var(--color-focus);
+}

@@ -1,0 +1,56 @@
+.fc {
+  display: flex;
+  flex-direction: column;
+  row-gap: var(--gap, 0);
+}
+
+.f {
+  display: flex;
+  column-gap: var(--gap, 0);
+}
+
+.fr {
+  display: flex;
+  flex-direction: row-reverse;
+  column-gap: var(--gap, 0);
+}
+
+.fw {
+  flex-wrap: wrap;
+}
+
+.fj-b {
+  justify-content: space-between;
+}
+
+.fj-c {
+  justify-content: center;
+}
+
+.fa-c {
+  align-items: center;
+}
+
+.fa-s {
+  align-items: flex-start;
+}
+
+.g1 {
+  --gap: 4px;
+}
+
+.g2 {
+  --gap: 8px;
+}
+
+.g3 {
+  --gap: 12px;
+}
+
+.g4 {
+  --gap: 16px;
+}
+
+.g8 {
+  --gap: 32px;
+}
