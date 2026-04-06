@@ -12,4 +12,5 @@ export type TImage = {
 export type TImagesState = {
   images: Record<string, TImage>;
   imageOrder: string[];
+  selectedImageId: string | null;
 };

@@ -1,18 +1,11 @@
 .zone {
   position: relative;
 
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100vw;
-  width: 100dvw;
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
 
-  transition:
-    background-color var(--transition-basic),
-    border-color var(--transition-basic);
+  transition: background-color var(--transition-basic);
 }
 
 .zone:focus-visible {
@@ -53,21 +46,19 @@
 }
 
 .select {
-  padding: 0;
   margin: 0;
+  padding: 0;
 
   color: inherit;
   font: inherit;
   text-align: inherit;
   text-decoration: underline;
 
-  cursor: pointer;
-
   background: none;
   border: none;
+  cursor: pointer;
 
   pointer-events: auto;
-
   text-decoration-color: color-mix(
     in oklab,
     var(--color-primary) 10%,

@@ -1,8 +1,7 @@
 import { Component, createMemo, For, Show } from "solid-js";
 
-import { addImages, clearAll, removeImage, store } from "~/modules/state";
-import { Button } from "~/pixel";
-import { Loader } from "~/pixel/Loader/Loader";
+import { addImages, clearAll, removeImage, setSelectedImage, store } from "~/modules/state";
+import { Button, cn, Loader } from "~/pixel";
 import { formatFileSize } from "~/utils/format";
 import { useFilePicker } from "~/utils/useFilePicker";
 
@@ -20,7 +19,7 @@ export const ImageList: Component = () => {
   );
 
   return (
-    <div class={styles.wrapper}>
+    <aside class={styles.sidebar}>
       <header class={styles.header}>
         <h1 class={styles.title}>i0</h1>
         <div class={styles.actions}>
@@ -41,36 +40,37 @@ export const ImageList: Component = () => {
       <ul class={styles.list}>
         <For each={images()}>
           {(image) => (
-            <li class={styles.item}>
-              <div class={styles.preview}>
-                <img
-                  src={URL.createObjectURL(image.file)}
-                  alt=""
-                  class={styles.thumb}
-                />
-              </div>
-              <div class={styles.info}>
-                <span class={styles.name}>{image.fileName}</span>
-                <span class={styles.size}>
-                  {formatFileSize(image.size)}
-                  {image.optimizedSize !== undefined && (
-                    <>
-                      {" → "}
-                      {formatFileSize(image.optimizedSize)}
-                    </>
-                  )}
-                </span>
+            <li>
+              <button
+                type="button"
+                class={cn(
+                  styles.item,
+                  store.selectedImageId === image.id && styles.selected
+                )}
+                onClick={() => setSelectedImage(image.id)}
+              >
+                <div class={styles.preview}>
+                  <img
+                    src={URL.createObjectURL(image.file)}
+                    alt=""
+                    class={styles.thumb}
+                  />
+                </div>
+                <span class={styles.size}>{formatFileSize(image.size)}</span>
                 <Show when={image.status === "processing"}>
                   <Loader size="small" class={styles.loader} />
                 </Show>
                 <Show when={image.status === "error"}>
                   <span class={styles.error}>{image.error}</span>
                 </Show>
-              </div>
+              </button>
               <Button
                 kind="default"
                 class={styles.remove}
-                onClick={() => removeImage(image.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeImage(image.id);
+                }}
               >
                 Remove
               </Button>
@@ -78,6 +78,6 @@ export const ImageList: Component = () => {
           )}
         </For>
       </ul>
-    </div>
+    </aside>
   );
 };

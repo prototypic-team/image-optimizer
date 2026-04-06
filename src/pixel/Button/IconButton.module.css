@@ -1,0 +1,130 @@
+.button {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+
+  color: color-mix(in oklab, var(--color-primary) 60%, transparent);
+
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-controls);
+  cursor: pointer;
+
+  transition: color var(--transition-active);
+}
+
+.button:hover {
+  color: var(--color-primary);
+}
+
+.button:focus {
+  outline: none;
+}
+
+.danger:hover {
+  color: var(--color-danger);
+}
+
+.button:disabled,
+.button.disabled {
+  outline: none;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.default {
+  color: var(--color-primary);
+
+  background-color: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  border-color: transparent;
+  /* stylelint-disable-next-line property-no-vendor-prefix */
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.default:hover:not(:disabled) {
+  background-color: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  border-color: transparent;
+}
+
+[data-button-role="focus-bg"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+
+  border-radius: inherit;
+
+  transition: background-color var(--transition-active);
+}
+
+.button[data-focus-visible="true"] {
+  z-index: var(--z-index-focus);
+}
+
+.button[data-focus-visible="true"] [data-button-role="focus-bg"] {
+  color: #000;
+
+  background-color: var(--color-focus);
+}
+
+.button.danger[data-focus-visible="true"] [data-button-role="focus-bg"] {
+  color: var(--color-base);
+
+  background-color: var(--color-danger);
+}
+
+.button[data-focus-visible="true"] svg {
+  background-color: transparent;
+}
+
+.secondary {
+  color: var(--color-primary);
+
+  background-color: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  border-color: transparent;
+  /* stylelint-disable-next-line property-no-vendor-prefix */
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  border-color: transparent;
+}
+
+.base {
+  color: color-mix(in oklab, var(--color-primary) 70%, transparent);
+
+  background-color: color-mix(in oklab, var(--color-base) 90%, transparent);
+  border-color: transparent;
+  /* stylelint-disable-next-line property-no-vendor-prefix */
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.base:hover:not(:disabled) {
+  color: var(--color-primary);
+
+  background-color: var(--color-base);
+  border-color: transparent;
+}
+
+.focusBackground {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+
+  border-radius: inherit;
+
+  transition: background-color var(--transition-active);
+}

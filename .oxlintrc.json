@@ -1,0 +1,76 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "import"],
+	"jsPlugins": ["eslint-plugin-simple-import-sort"],
+	"env": {
+		"browser": true,
+		"node": true,
+		"es2025": true
+	},
+	"rules": {
+		"no-console": ["error", { "allow": ["warn", "error"] }],
+		"no-debugger": "error",
+		"no-shadow": "error",
+		"no-irregular-whitespace": "warn",
+		"prefer-const": "warn",
+		"no-unused-vars": "off",
+		"no-unassigned-vars": "off",
+		"simple-import-sort/exports": "error",
+		"simple-import-sort/imports": [
+			"error",
+			{
+				"groups": [
+					["^\\u0000"],
+					["^@?\\w"],
+					["^tools", "^~"],
+					["^\\.\\.", "\\."],
+					["^Types"]
+				]
+			}
+		],
+		"typescript/no-unused-vars": [
+			"error",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_"
+			}
+		],
+		"import/no-cycle": "error",
+		"import/no-default-export": "error",
+		"import/first": "error"
+	},
+	"overrides": [
+		{
+			"files": ["src/**/*.ts", "src/**/*.tsx"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["~/**/*repository*"],
+								"message": "Cannot use repository outside of the module. Use module public methods instead"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"src/App.tsx",
+				"vite.config.ts",
+				".oxlintrc.json"
+			],
+			"rules": {
+				"import/no-default-export": "off"
+			}
+		},
+		{
+			"files": ["**/*.test.ts", "**/*.test.tsx"],
+			"rules": {
+				"typescript/ban-ts-comment": "off"
+			}
+		}
+	]
+}

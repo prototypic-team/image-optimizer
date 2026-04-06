@@ -1,0 +1,41 @@
+main,
+header,
+footer {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+header {
+  padding-block: 20px;
+}
+
+section {
+  margin-bottom: 32px;
+}
+
+h1 {
+  font-weight: var(--font-weight-bold);
+}
+
+h2 {
+  margin: 0 0 4px;
+}
+
+p {
+  margin: 0 0 16px;
+}
+
+code {
+  padding: 0.1em 0.35em;
+
+  font-size: 0.95em;
+
+  background-color: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  border-radius: 4px;
+}
+
+footer {
+  padding-top: 20px;
+  padding-bottom: 12px;
+}

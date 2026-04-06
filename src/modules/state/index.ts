@@ -16,6 +16,7 @@ const createImageFromFile = (file: File): TImage => ({
 const [store, setStore] = createStore<TImagesState>({
   images: {},
   imageOrder: [],
+  selectedImageId: null,
 });
 
 const addImages = (files: File[]) => {
@@ -36,6 +37,10 @@ const addImages = (files: File[]) => {
       for (const img of newImages) {
         prev.images[img.id] = img;
         prev.imageOrder.push(img.id);
+      }
+      // Select first image when adding (or first of all if none selected)
+      if (prev.selectedImageId === null && prev.imageOrder.length > 0) {
+        prev.selectedImageId = prev.imageOrder[0];
       }
     })
   );
@@ -82,12 +87,20 @@ const removeImage = (imageId: string) => {
     produce((prev) => {
       delete prev.images[imageId];
       prev.imageOrder = prev.imageOrder.filter((id) => id !== imageId);
+      if (prev.selectedImageId === imageId) {
+        prev.selectedImageId =
+          prev.imageOrder.length > 0 ? prev.imageOrder[0] : null;
+      }
     })
   );
 };
 
 const clearAll = () => {
-  setStore({ images: {}, imageOrder: [] });
+  setStore({ images: {}, imageOrder: [], selectedImageId: null });
+};
+
+const setSelectedImage = (imageId: string | null) => {
+  setStore("selectedImageId", imageId);
 };
 
 export {
@@ -95,5 +108,6 @@ export {
   clearAll,
   processImage,
   removeImage,
+  setSelectedImage,
   store,
 };

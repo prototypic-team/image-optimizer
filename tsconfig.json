@@ -4,8 +4,6 @@
     "jsxImportSource": "solid-js",
     "target": "ESNext",
 
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
     "isolatedModules": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -16,6 +14,6 @@
 
     "strict": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "bun"]
   }
 }
