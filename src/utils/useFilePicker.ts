@@ -108,21 +108,5 @@ export const useFilePicker = (options: UseFilePickerOptions) => {
     input.click();
   };
 
-  const openFolderPicker = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.multiple = true;
-    input.setAttribute("webkitdirectory", "");
-    input.setAttribute("directory", "");
-    input.onchange = () => {
-      const files = input.files ? Array.from(input.files) : [];
-      const imageFiles = files.filter(isImageFile);
-      if (imageFiles.length > 0) {
-        onFilesSelected(imageFiles);
-      }
-    };
-    input.click();
-  };
-
-  return { openFilePicker, openFolderPicker, handleFileList };
+  return { openFilePicker, handleFileList };
 };

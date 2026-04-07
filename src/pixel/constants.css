@@ -34,6 +34,7 @@
   --z-index-focus: 10;
 
   /* Focus */
+  --focus-outline-style: 3px solid;
   --focus-outline: 3px solid var(--color-focus);
 }
 

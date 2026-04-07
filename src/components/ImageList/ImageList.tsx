@@ -1,14 +1,23 @@
 import { Component, createMemo, For, Show } from "solid-js";
 
-import { addImages, clearAll, removeImage, setSelectedImage, store } from "~/modules/state";
-import { Button, cn, Loader } from "~/pixel";
+import {
+  addImages,
+  clearAll,
+  removeImage,
+  setSelectedImage,
+  store,
+} from "~/modules/state";
+import { cn } from "~/pixel";
 import { formatFileSize } from "~/utils/format";
+import { isMac } from "~/utils/platform";
 import { useFilePicker } from "~/utils/useFilePicker";
 
 import styles from "./ImageList.module.css";
 
+const modKey = isMac ? "⌘" : "Ctrl";
+
 export const ImageList: Component = () => {
-  const { openFilePicker, openFolderPicker } = useFilePicker({
+  const { openFilePicker } = useFilePicker({
     onFilesSelected: addImages,
   });
 
@@ -19,65 +28,68 @@ export const ImageList: Component = () => {
   );
 
   return (
-    <aside class={styles.sidebar}>
-      <header class={styles.header}>
-        <h1 class={styles.title}>i0</h1>
-        <div class={styles.actions}>
-          <Button kind="default" onClick={openFilePicker}>
-            Add images
-          </Button>
-          <Button kind="default" onClick={openFolderPicker}>
-            Add folder
-          </Button>
-          <Show when={images().length > 0}>
-            <Button kind="default" onClick={clearAll}>
-              Clear
-            </Button>
-          </Show>
+    <nav class={styles.container}>
+      <Show when={images().length > 0}>
+        <div class={styles.list}>
+          <For each={images()}>
+            {(image) => (
+              <div class={styles.itemWrapper}>
+                <button
+                  type="button"
+                  class={cn(
+                    styles.item,
+                    store.selectedImageId === image.id && styles.selected
+                  )}
+                  aria-label={`Select ${image.name}`}
+                  onClick={() => setSelectedImage(image.id)}
+                >
+                  <div class={styles.preview}>
+                    <img
+                      src={URL.createObjectURL(image.file)}
+                      alt=""
+                      class={styles.thumb}
+                    />
+                  </div>
+                  <span>{formatFileSize(image.size)}</span>
+                </button>
+                <button
+                  type="button"
+                  class={styles.remove}
+                  aria-label={`Remove ${image.name}`}
+                  onClick={() => removeImage(image.id)}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </For>
         </div>
-      </header>
+      </Show>
 
-      <ul class={styles.list}>
-        <For each={images()}>
-          {(image) => (
-            <li>
-              <button
-                type="button"
-                class={cn(
-                  styles.item,
-                  store.selectedImageId === image.id && styles.selected
-                )}
-                onClick={() => setSelectedImage(image.id)}
-              >
-                <div class={styles.preview}>
-                  <img
-                    src={URL.createObjectURL(image.file)}
-                    alt=""
-                    class={styles.thumb}
-                  />
-                </div>
-                <span class={styles.size}>{formatFileSize(image.size)}</span>
-                <Show when={image.status === "processing"}>
-                  <Loader size="small" class={styles.loader} />
-                </Show>
-                <Show when={image.status === "error"}>
-                  <span class={styles.error}>{image.error}</span>
-                </Show>
-              </button>
-              <Button
-                kind="default"
-                class={styles.remove}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeImage(image.id);
-                }}
-              >
-                Remove
-              </Button>
-            </li>
-          )}
-        </For>
-      </ul>
-    </aside>
+      <div class={styles.actions}>
+        <button
+          type="button"
+          class={cn(styles.action, styles.addImages)}
+          onClick={openFilePicker}
+        >
+          <span class={styles.title}>Add images</span>
+          <span>{modKey} + U</span>
+        </button>
+        <Show when={images().length > 0}>
+          <button
+            type="button"
+            id="clear-all"
+            class={cn(styles.action, styles.clearAll)}
+            onClick={(e) => {
+              e.stopPropagation();
+              clearAll();
+            }}
+          >
+            <span class={styles.name}>Clear All</span>
+            <span>{modKey} + Del</span>
+          </button>
+        </Show>
+      </div>
+    </nav>
   );
 };

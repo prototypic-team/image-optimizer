@@ -1,7 +1,16 @@
-import { Component, createMemo, createSignal, JSX, Show } from "solid-js";
+import {
+  Component,
+  createMemo,
+  createSignal,
+  JSX,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 
-import { addImages, store } from "~/modules/state";
+import { addImages, clearAll, store } from "~/modules/state";
 import { cn } from "~/pixel";
+import { isMac } from "~/utils/platform";
 import { collectFilesFromDrop, useFilePicker } from "~/utils/useFilePicker";
 
 import styles from "./ImageDropZone.module.css";
@@ -16,6 +25,24 @@ export const ImageDropZone: Component<Props> = (props) => {
 
   const { openFilePicker, handleFileList } = useFilePicker({
     onFilesSelected: addImages,
+  });
+
+  onMount(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "KeyU" && (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey) {
+        e.preventDefault();
+        openFilePicker();
+      }
+      const isClearShortcut = isMac
+        ? e.metaKey && (e.code === "Delete" || e.code === "Backspace")
+        : e.ctrlKey && e.code === "Delete";
+      if (isClearShortcut && Object.keys(store.images).length > 0) {
+        e.preventDefault();
+        clearAll();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    onCleanup(() => window.removeEventListener("keydown", handleGlobalKeyDown));
   });
 
   const handleClick: JSX.EventHandler<HTMLDivElement, MouseEvent> = (e) => {
