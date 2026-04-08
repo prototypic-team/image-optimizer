@@ -8,10 +8,15 @@ html {
   background-color: var(--color-base);
 }
 
+html:has(#clear-all:hover),
+html:has(#clear-all:focus-visible) {
+  --color-base: var(--color-danger);
+}
+
 body {
   height: 100dvh;
-  overflow: hidden;
   margin: 0;
+  overflow: hidden;
 
   color: var(--color-primary);
   font-size: var(--font-size-basic);
