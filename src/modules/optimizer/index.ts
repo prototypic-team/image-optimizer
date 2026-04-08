@@ -10,10 +10,46 @@ export type TOptimizeResult = {
   size: number;
 };
 
+export type TOptimizeConfig = {
+  format: TEncodeFormat;
+  quality?: number;
+};
+
+const FORMAT_LABELS: Record<TEncodeFormat, string> = {
+  avif: "AVIF",
+  jpeg: "JPEG",
+  png: "PNG",
+  webp: "WebP",
+};
+
+const FORMAT_EXT: Record<TEncodeFormat, string> = {
+  avif: "avif",
+  jpeg: "jpg",
+  png: "png",
+  webp: "webp",
+};
+
+export const configKey = (cfg: TOptimizeConfig): string =>
+  cfg.quality != null ? `${cfg.format}_q${cfg.quality}` : cfg.format;
+
+export const configLabel = (cfg: TOptimizeConfig): string => {
+  const base = FORMAT_LABELS[cfg.format];
+  return cfg.quality != null ? `${base} q${cfg.quality}` : base;
+};
+
+export const configExt = (cfg: TOptimizeConfig): string =>
+  FORMAT_EXT[cfg.format];
+
 const MAX_DIMENSION = 1920;
 const AVIF_QUALITY = 32;
 const JPEG_QUALITY = 80;
 const WEBP_QUALITY = 80;
+
+export const DEFAULT_CONFIGS: TOptimizeConfig[] = [
+  { format: "avif", quality: AVIF_QUALITY },
+  { format: "jpeg", quality: JPEG_QUALITY },
+  { format: "webp", quality: WEBP_QUALITY },
+];
 
 async function fileToImageData(
   file: File,
@@ -40,27 +76,28 @@ async function fileToImageData(
 
 export const optimizeImage = async (
   file: File,
-  format?: TEncodeFormat
+  config: TOptimizeConfig
 ): Promise<TOptimizeResult> => {
   const imageData = await fileToImageData(file, MAX_DIMENSION);
 
-  const ext = file.name.toLowerCase().split(".").pop();
-  const outputFormat = format ?? (ext === "png" ? "png" : "avif");
+  const { format, quality } = config;
 
   let buffer: ArrayBuffer;
   let mimeType: string;
 
-  switch (outputFormat) {
+  switch (format) {
     case "avif":
-      buffer = await encodeAvif(imageData, { cqLevel: AVIF_QUALITY });
+      buffer = await encodeAvif(imageData, {
+        cqLevel: quality ?? AVIF_QUALITY,
+      });
       mimeType = "image/avif";
       break;
     case "jpeg":
-      buffer = await encodeJpeg(imageData, { quality: JPEG_QUALITY });
+      buffer = await encodeJpeg(imageData, { quality: quality ?? JPEG_QUALITY });
       mimeType = "image/jpeg";
       break;
     case "webp":
-      buffer = await encodeWebp(imageData, { quality: WEBP_QUALITY });
+      buffer = await encodeWebp(imageData, { quality: quality ?? WEBP_QUALITY });
       mimeType = "image/webp";
       break;
     case "png":
@@ -68,7 +105,9 @@ export const optimizeImage = async (
       mimeType = "image/png";
       break;
     default:
-      buffer = await encodeAvif(imageData, { cqLevel: AVIF_QUALITY });
+      buffer = await encodeAvif(imageData, {
+        cqLevel: quality ?? AVIF_QUALITY,
+      });
       mimeType = "image/avif";
   }
 

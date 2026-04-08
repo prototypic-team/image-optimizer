@@ -1,6 +1,10 @@
 import { createStore, produce } from "solid-js/store";
 
-import { optimizeImage } from "~/modules/optimizer";
+import {
+  configKey,
+  DEFAULT_CONFIGS,
+  optimizeImage,
+} from "~/modules/optimizer";
 import {
   clearPersistedApp,
   loadPersistedBlob,
@@ -11,7 +15,7 @@ import {
   type TPersistedImageMeta,
 } from "~/modules/persistence/persistence";
 
-import type { TImage, TImagesState } from "./types.d";
+import type { TFormatResult, TImage, TImagesState } from "./types.d";
 
 const createImageFromFile = (file: File): TImage => ({
   id: crypto.randomUUID(),
@@ -35,7 +39,22 @@ const mimeFromFileName = (fileName: string): string => {
   return "application/octet-stream";
 };
 
-const makeTImage = (m: TPersistedImageMeta, buf: ArrayBuffer): TImage => {
+const makeTImage = (
+  m: TPersistedImageMeta,
+  buf: ArrayBuffer,
+  optimizedBufs?: Record<string, ArrayBuffer>
+): TImage => {
+  let optimized: Record<string, TFormatResult> | undefined;
+  if (m.optimized && optimizedBufs) {
+    optimized = {};
+    for (const [cfgKey, meta] of Object.entries(m.optimized)) {
+      const oBuf = optimizedBufs[cfgKey];
+      if (!oBuf) continue;
+      const blob = new Blob([oBuf], { type: meta.mimeType });
+      optimized[cfgKey] = { blob, size: meta.size };
+    }
+  }
+
   return {
     id: m.id,
     name: m.name,
@@ -47,6 +66,7 @@ const makeTImage = (m: TPersistedImageMeta, buf: ArrayBuffer): TImage => {
       original: m.weight.original,
       optimized: m.weight.optimized,
     },
+    optimized,
     error: m.error,
   };
 };
@@ -64,6 +84,15 @@ const buildAppMeta = (): TPersistedAppMeta | null => {
   for (const id of store.imageOrder) {
     const img = store.images[id];
     if (!img) continue;
+    const persistedOptimized = img.optimized
+      ? Object.fromEntries(
+          Object.entries(img.optimized).map(([k, v]) => [
+            k,
+            { size: v.size, mimeType: v.blob.type },
+          ])
+        )
+      : undefined;
+
     imagesMeta[id] = {
       id: img.id,
       name: img.name,
@@ -74,6 +103,7 @@ const buildAppMeta = (): TPersistedAppMeta | null => {
         original: img.weight.original,
         optimized: img.weight.optimized,
       },
+      optimized: persistedOptimized,
       error: img.error,
     };
   }
@@ -101,12 +131,19 @@ const writePersistedSnapshot = async (): Promise<void> => {
   if (!meta) return;
 
   const files: Record<string, File> = {};
+  const optimizedBlobs: Record<string, Blob> = {};
   for (const id of store.imageOrder) {
     const img = store.images[id];
-    if (img) files[id] = img.file;
+    if (!img) continue;
+    files[id] = img.file;
+    if (img.optimized) {
+      for (const [cfgKey, result] of Object.entries(img.optimized)) {
+        optimizedBlobs[`${id}:${cfgKey}`] = result.blob;
+      }
+    }
   }
 
-  await savePersistedApp({ meta, files });
+  await savePersistedApp({ meta, files, optimizedBlobs });
 };
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
@@ -159,14 +196,27 @@ const processImage = async (imageId: string) => {
   setStore("images", imageId, "status", "processing");
 
   try {
-    const result = await optimizeImage(image.file);
+    const results = await Promise.all(
+      DEFAULT_CONFIGS.map(async (cfg) => ({
+        key: configKey(cfg),
+        result: await optimizeImage(image.file, cfg),
+      }))
+    );
+
+    const optimized: Record<string, TFormatResult> = {};
+    let smallest = Infinity;
+    for (const { key, result } of results) {
+      optimized[key] = result;
+      if (result.size < smallest) smallest = result.size;
+    }
 
     setStore(
       produce((prev) => {
         const img = prev.images[imageId];
         if (img) {
           img.status = "done";
-          img.weight.optimized = result.size;
+          img.weight.optimized = smallest;
+          img.optimized = optimized;
         }
       })
     );
@@ -227,7 +277,17 @@ export const hydrateFromPersistence = async (
     if (!m) continue;
     const buf = await loadPersistedBlob(id);
     if (!buf) continue;
-    images[id] = makeTImage(m, buf);
+
+    let optimizedBufs: Record<string, ArrayBuffer> | undefined;
+    if (m.optimized) {
+      optimizedBufs = {};
+      for (const cfgKey of Object.keys(m.optimized)) {
+        const oBuf = await loadPersistedBlob(`${id}:${cfgKey}`);
+        if (oBuf) optimizedBufs[cfgKey] = oBuf;
+      }
+    }
+
+    images[id] = makeTImage(m, buf, optimizedBufs);
     imageOrder.push(id);
   }
 

@@ -1,110 +1,175 @@
-import { Component, createMemo, createResource, onCleanup, Show } from "solid-js";
+import { Component, createMemo, onCleanup, Show } from "solid-js";
 
-import type { TEncodeFormat } from "~/modules/optimizer";
-import { optimizeImage } from "~/modules/optimizer";
+import {
+  configExt,
+  configKey,
+  configLabel,
+  DEFAULT_CONFIGS,
+} from "~/modules/optimizer";
 import { store } from "~/modules/state";
+import type { TFormatResult } from "~/modules/state/types.d";
+import { Button } from "~/pixel";
 import { formatFileSize } from "~/utils/format";
 
 import styles from "./ImagePreview.module.css";
 
-type PreviewFormat = "original" | TEncodeFormat;
+type CellConfig = { key: string; label: string; ext: string };
 
-type PreviewResult = Record<PreviewFormat, { url: string; size: number }>;
+const CELLS: CellConfig[] = DEFAULT_CONFIGS.map((cfg) => ({
+  key: configKey(cfg),
+  label: configLabel(cfg),
+  ext: configExt(cfg),
+}));
 
-const FORMATS: { format: PreviewFormat; label: string }[] = [
-  { format: "original", label: "Original" },
-  { format: "avif", label: "AVIF" },
-  { format: "jpeg", label: "JPEG" },
-  { format: "webp", label: "WebP" },
-];
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const getSmallest = (
+  file: File,
+  extension: string,
+  optimized: Record<string, TFormatResult>
+): { ext: string; blob: Blob; size: number } => {
+  let best: { ext: string; blob: Blob; size: number } = {
+    ext: extension,
+    blob: file,
+    size: file.size,
+  };
+
+  for (const cell of CELLS) {
+    const r = optimized[cell.key];
+    if (r && r.size < best.size) {
+      best = { ext: cell.ext, blob: r.blob, size: r.size };
+    }
+  }
+
+  return best;
+};
 
 export const ImagePreview: Component = () => {
+  const hasImages = createMemo(() => store.imageOrder.length > 0);
+
   const selectedImage = () => {
     const id = store.selectedImageId;
     return id ? store.images[id] : null;
   };
 
-  const originalPreview = createMemo(() => {
+  const previewUrls = createMemo(() => {
     const img = selectedImage();
     if (!img) return null;
-    const url = URL.createObjectURL(img.file);
-    onCleanup(() => URL.revokeObjectURL(url));
-    return { url, size: img.file.size };
+
+    const urls: { key: string; url: string; size: number }[] = [];
+
+    const origUrl = URL.createObjectURL(img.file);
+    urls.push({ key: "original", url: origUrl, size: img.file.size });
+
+    if (img.optimized) {
+      for (const cell of CELLS) {
+        const r = img.optimized[cell.key];
+        if (r) {
+          urls.push({
+            key: cell.key,
+            url: URL.createObjectURL(r.blob),
+            size: r.size,
+          });
+        }
+      }
+    }
+
+    onCleanup(() => {
+      for (const u of urls) URL.revokeObjectURL(u.url);
+    });
+
+    return new Map(urls.map((u) => [u.key, u]));
   });
 
-  const [encoded] = createResource(
-    () => {
-      const img = selectedImage();
-      return img ? { file: img.file } : null;
-    },
-    async (input) => {
-      const results: Partial<PreviewResult> = {};
-      await Promise.all(
-        FORMATS.map(async ({ format }) => {
-          if (format === "original") {
-            results[format] = {
-              url: URL.createObjectURL(input.file),
-              size: input.file.size,
-            };
-          } else {
-            const { blob, size } = await optimizeImage(input.file, format);
-            results[format] = {
-              url: URL.createObjectURL(blob),
-              size,
-            };
-          }
-        })
-      );
-      return results as PreviewResult;
-    }
+  const allDone = createMemo(
+    () =>
+      store.imageOrder.length > 0 &&
+      store.imageOrder.every((id) => store.images[id]?.status === "done")
   );
 
+  const handleExport = () => {
+    const img = selectedImage();
+    if (!img?.optimized) return;
+    const best = getSmallest(img.file, img.extension, img.optimized);
+    downloadBlob(best.blob, `${img.name}.${best.ext}`);
+  };
+
+  const handleExportAll = () => {
+    for (const id of store.imageOrder) {
+      const img = store.images[id];
+      if (!img?.optimized) continue;
+      const best = getSmallest(img.file, img.extension, img.optimized);
+      downloadBlob(best.blob, `${img.name}.${best.ext}`);
+    }
+  };
+
   return (
-    <Show
-      when={selectedImage()}
-      fallback={<div class={styles.empty}>Select an image</div>}
-    >
-      <div class={styles.grid}>
-        {FORMATS.map(({ format, label }) => (
-          <div class={styles.cell}>
-            <div class={styles.label}>{label}</div>
-            <Show
-              when={encoded()}
-              keyed
-              fallback={
-                (() => {
-                  const orig = originalPreview();
-                  return orig ? (
-                    <>
-                      <img
-                        src={orig.url}
-                        alt={`${label} format`}
-                        class={styles.preview}
-                      />
-                      <span class={styles.size}>
-                        {formatFileSize(orig.size)}
-                      </span>
-                    </>
-                  ) : null;
-                })()
-              }
-            >
-              {(data: PreviewResult) => (
-                <>
-                  <img
-                    src={data[format].url}
-                    alt={`${label} format`}
-                    class={styles.preview}
-                  />
-                  <span class={styles.size}>
-                    {formatFileSize(data[format].size)}
-                  </span>
-                </>
-              )}
+    <div class={styles.container}>
+      <Show
+        when={selectedImage()}
+        fallback={
+          <Show when={hasImages()}>
+            <div class={styles.empty}>Select an image</div>
+          </Show>
+        }
+      >
+        <div class={styles.grid}>
+          {[{ key: "original", label: "Original" }, ...CELLS].map(
+            ({ key, label }) => {
+              const entry = () => previewUrls()?.get(key);
+              return (
+                <div class={styles.cell}>
+                  <div class={styles.label}>{label}</div>
+                  <Show when={entry()}>
+                    {(e) => (
+                      <>
+                        <img
+                          src={e().url}
+                          alt={`${label} format`}
+                          class={styles.preview}
+                        />
+                        <span class={styles.size}>
+                          {formatFileSize(e().size)}
+                        </span>
+                      </>
+                    )}
+                  </Show>
+                </div>
+              );
+            }
+          )}
+        </div>
+      </Show>
+      <Show when={hasImages()}>
+        <footer class={styles.footer}>
+          <div class={styles.footerActions}>
+            <Show when={selectedImage()?.optimized}>
+              <Button
+                data-label={`Export ${selectedImage()?.name ?? ""}`}
+                class={styles.exportImage}
+                kind="secondary"
+                onClick={handleExport}
+              />
             </Show>
+            <Button
+              kind="primary"
+              disabled={!allDone()}
+              onClick={handleExportAll}
+            >
+              Export All
+            </Button>
           </div>
-        ))}
-      </div>
-    </Show>
+        </footer>
+      </Show>
+    </div>
   );
 };

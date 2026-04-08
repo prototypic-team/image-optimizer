@@ -1,3 +1,8 @@
+export type TFormatResult = {
+  blob: Blob;
+  size: number;
+};
+
 export type TImage = {
   id: string;
   name: string;
@@ -9,6 +14,8 @@ export type TImage = {
     original: number;
     optimized: number | undefined;
   };
+  /** Keyed by configKey (e.g. "avif_q32", "png") */
+  optimized?: Record<string, TFormatResult>;
   error?: string;
 };
 
