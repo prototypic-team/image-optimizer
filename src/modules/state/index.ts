@@ -1,10 +1,6 @@
 import { createStore, produce } from "solid-js/store";
 
-import {
-  configKey,
-  DEFAULT_CONFIGS,
-  optimizeImage,
-} from "~/modules/optimizer";
+import { DEFAULT_CONFIGS, optimizeInWorker } from "~/modules/optimizer";
 import {
   clearPersistedApp,
   loadPersistedBlob,
@@ -71,7 +67,7 @@ const makeTImage = (
   };
 };
 
-const [store, setStore] = createStore<TImagesState>({
+export const [store, setStore] = createStore<TImagesState>({
   images: {},
   imageOrder: [],
   selectedImageId: undefined,
@@ -157,7 +153,7 @@ const schedulePersistSnapshot = (): void => {
   }, 400);
 };
 
-const addImages = (files: File[]) => {
+export const addImages = (files: File[]) => {
   const existingNames = new Set(
     Object.values(store.images).map((img) => img.fileName)
   );
@@ -176,7 +172,7 @@ const addImages = (files: File[]) => {
         prev.images[img.id] = img;
         prev.imageOrder.push(img.id);
       }
-      if (prev.selectedImageId === null && prev.imageOrder.length > 0) {
+      if (prev.selectedImageId == undefined && prev.imageOrder.length > 0) {
         prev.selectedImageId = prev.imageOrder[0];
       }
     })
@@ -196,30 +192,28 @@ const processImage = async (imageId: string) => {
   setStore("images", imageId, "status", "processing");
 
   try {
-    const results = await Promise.all(
-      DEFAULT_CONFIGS.map(async (cfg) => ({
-        key: configKey(cfg),
-        result: await optimizeImage(image.file, cfg),
-      }))
+    await optimizeInWorker(
+      imageId,
+      image.file,
+      DEFAULT_CONFIGS,
+      (cfgKey, result) => {
+        setStore(
+          produce((prev) => {
+            const img = prev.images[imageId];
+            if (!img) return;
+            if (!img.optimized) img.optimized = {};
+            img.optimized[cfgKey] = result;
+            const smallest = Math.min(
+              img.weight.optimized ?? Infinity,
+              result.size
+            );
+            img.weight.optimized = smallest;
+          })
+        );
+      }
     );
 
-    const optimized: Record<string, TFormatResult> = {};
-    let smallest = Infinity;
-    for (const { key, result } of results) {
-      optimized[key] = result;
-      if (result.size < smallest) smallest = result.size;
-    }
-
-    setStore(
-      produce((prev) => {
-        const img = prev.images[imageId];
-        if (img) {
-          img.status = "done";
-          img.weight.optimized = smallest;
-          img.optimized = optimized;
-        }
-      })
-    );
+    setStore("images", imageId, "status", "done");
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setStore(
@@ -236,7 +230,7 @@ const processImage = async (imageId: string) => {
   schedulePersistSnapshot();
 };
 
-const removeImage = (imageId: string) => {
+export const removeImage = (imageId: string) => {
   setStore(
     produce((prev) => {
       delete prev.images[imageId];
@@ -250,12 +244,12 @@ const removeImage = (imageId: string) => {
   schedulePersistSnapshot();
 };
 
-const clearAll = () => {
+export const clearAll = () => {
   setStore({ images: {}, imageOrder: [], selectedImageId: undefined });
   schedulePersistSnapshot();
 };
 
-const setSelectedImage = (imageId: string | undefined) => {
+export const setSelectedImage = (imageId: string | undefined) => {
   setStore("selectedImageId", imageId);
   schedulePersistSnapshot();
 };
@@ -312,13 +306,4 @@ export const hydrateFromPersistence = async (
   }
 
   schedulePersistSnapshot();
-};
-
-export {
-  addImages,
-  clearAll,
-  processImage,
-  removeImage,
-  setSelectedImage,
-  store,
 };

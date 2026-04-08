@@ -15,6 +15,9 @@ export default defineConfig({
       "@jsquash/webp",
     ],
   },
+  worker: {
+    format: "es",
+  },
   server: {
     port: 3000,
   },

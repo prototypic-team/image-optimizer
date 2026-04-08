@@ -1,11 +1,10 @@
 # i0 — Image Optimizer
 
-A browser-based image optimization tool. Drop or select images (or a folder with images) to compress them.
+A browser-based image optimization tool. Drop or select images to compress them. It converts image using formats supported by the majority of the modern browsers.
 
 ## Features
 
 - Drag & drop images or folders
-- Select images or folder via file picker
 - Image list with before/after size
 - Processing runs in web workers (via `browser-image-compression`)
 

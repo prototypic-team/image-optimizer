@@ -1,18 +1,13 @@
-import { encode as encodeAvif } from "@jsquash/avif";
-import { encode as encodeJpeg } from "@jsquash/jpeg";
-import { encode as encodePng } from "@jsquash/png";
-import { encode as encodeWebp } from "@jsquash/webp";
+import type { TFormatResult } from "~/modules/state/types.d";
+
+import type { WorkerRequest, WorkerResponse } from "./worker";
 
 export type TEncodeFormat = "avif" | "jpeg" | "png" | "webp";
-
-export type TOptimizeResult = {
-  blob: Blob;
-  size: number;
-};
 
 export type TOptimizeConfig = {
   format: TEncodeFormat;
   quality?: number;
+  maxDimension?: number;
 };
 
 const FORMAT_LABELS: Record<TEncodeFormat, string> = {
@@ -20,13 +15,6 @@ const FORMAT_LABELS: Record<TEncodeFormat, string> = {
   jpeg: "JPEG",
   png: "PNG",
   webp: "WebP",
-};
-
-const FORMAT_EXT: Record<TEncodeFormat, string> = {
-  avif: "avif",
-  jpeg: "jpg",
-  png: "png",
-  webp: "webp",
 };
 
 export const configKey = (cfg: TOptimizeConfig): string =>
@@ -37,84 +25,76 @@ export const configLabel = (cfg: TOptimizeConfig): string => {
   return cfg.quality != null ? `${base} q${cfg.quality}` : base;
 };
 
-export const configExt = (cfg: TOptimizeConfig): string =>
-  FORMAT_EXT[cfg.format];
-
-const MAX_DIMENSION = 1920;
-const AVIF_QUALITY = 32;
-const JPEG_QUALITY = 80;
-const WEBP_QUALITY = 80;
-
 export const DEFAULT_CONFIGS: TOptimizeConfig[] = [
-  { format: "avif", quality: AVIF_QUALITY },
-  { format: "jpeg", quality: JPEG_QUALITY },
-  { format: "webp", quality: WEBP_QUALITY },
+  { format: "avif", quality: 60 },
+  { format: "jpeg", quality: 80 },
+  { format: "webp", quality: 80 },
 ];
 
-async function fileToImageData(
-  file: File,
-  maxDimension: number
-): Promise<ImageData> {
-  const bitmap = await createImageBitmap(file);
-  let { width, height } = bitmap;
+let worker: Worker | undefined;
 
-  if (width > maxDimension || height > maxDimension) {
-    const scale = Math.min(maxDimension / width, maxDimension / height);
-    width = Math.round(width * scale);
-    height = Math.round(height * scale);
+function getWorker(): Worker {
+  if (!worker) {
+    worker = new Worker(new URL("./worker.ts", import.meta.url), {
+      type: "module",
+    });
   }
-
-  const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not get canvas context");
-
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  return ctx.getImageData(0, 0, width, height);
+  return worker;
 }
 
-export const optimizeImage = async (
-  file: File,
-  config: TOptimizeConfig
-): Promise<TOptimizeResult> => {
-  const imageData = await fileToImageData(file, MAX_DIMENSION);
-
-  const { format, quality } = config;
-
-  let buffer: ArrayBuffer;
-  let mimeType: string;
-
-  switch (format) {
-    case "avif":
-      buffer = await encodeAvif(imageData, {
-        cqLevel: quality ?? AVIF_QUALITY,
-      });
-      mimeType = "image/avif";
-      break;
-    case "jpeg":
-      buffer = await encodeJpeg(imageData, { quality: quality ?? JPEG_QUALITY });
-      mimeType = "image/jpeg";
-      break;
-    case "webp":
-      buffer = await encodeWebp(imageData, { quality: quality ?? WEBP_QUALITY });
-      mimeType = "image/webp";
-      break;
-    case "png":
-      buffer = await encodePng(imageData);
-      mimeType = "image/png";
-      break;
-    default:
-      buffer = await encodeAvif(imageData, {
-        cqLevel: quality ?? AVIF_QUALITY,
-      });
-      mimeType = "image/avif";
-  }
-
-  const blob = new Blob([buffer], { type: mimeType });
-
-  return {
-    blob,
-    size: blob.size,
-  };
+type PendingTask = {
+  onResult: (configKey: string, result: TFormatResult) => void;
+  resolve: () => void;
+  reject: (err: Error) => void;
 };
+
+const pending = new Map<string, PendingTask>();
+
+function ensureListener() {
+  const w = getWorker();
+  if ((w as any).__bridgeListening) return;
+  (w as any).__bridgeListening = true;
+
+  w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+    const msg = e.data;
+    const task = pending.get(msg.taskId);
+    if (!task) return;
+
+    switch (msg.type) {
+      case "result": {
+        const blob = new Blob([msg.buffer], { type: msg.mimeType });
+        task.onResult(msg.configKey, { blob, size: msg.size });
+        break;
+      }
+      case "complete":
+        pending.delete(msg.taskId);
+        task.resolve();
+        break;
+      case "error":
+        pending.delete(msg.taskId);
+        task.reject(new Error(msg.error));
+        break;
+    }
+  };
+}
+
+export function optimizeInWorker(
+  taskId: string,
+  file: File,
+  configs: TOptimizeConfig[],
+  onResult: (configKey: string, result: TFormatResult) => void,
+): Promise<void> {
+  ensureListener();
+
+  return new Promise<void>((resolve, reject) => {
+    pending.set(taskId, { onResult, resolve, reject });
+
+    const msg: WorkerRequest = {
+      type: "optimize",
+      taskId,
+      file,
+      configs,
+    };
+    getWorker().postMessage(msg);
+  });
+}

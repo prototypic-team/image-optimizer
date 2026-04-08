@@ -1,11 +1,6 @@
 import { Component, createMemo, onCleanup, Show } from "solid-js";
 
-import {
-  configExt,
-  configKey,
-  configLabel,
-  DEFAULT_CONFIGS,
-} from "~/modules/optimizer";
+import { configKey, configLabel, DEFAULT_CONFIGS } from "~/modules/optimizer";
 import { store } from "~/modules/state";
 import type { TFormatResult } from "~/modules/state/types.d";
 import { Button } from "~/pixel";
@@ -18,7 +13,7 @@ type CellConfig = { key: string; label: string; ext: string };
 const CELLS: CellConfig[] = DEFAULT_CONFIGS.map((cfg) => ({
   key: configKey(cfg),
   label: configLabel(cfg),
-  ext: configExt(cfg),
+  ext: cfg.format,
 }));
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -114,14 +109,7 @@ export const ImagePreview: Component = () => {
 
   return (
     <div class={styles.container}>
-      <Show
-        when={selectedImage()}
-        fallback={
-          <Show when={hasImages()}>
-            <div class={styles.empty}>Select an image</div>
-          </Show>
-        }
-      >
+      <Show when={selectedImage()}>
         <div class={styles.grid}>
           {[{ key: "original", label: "Original" }, ...CELLS].map(
             ({ key, label }) => {
@@ -129,20 +117,17 @@ export const ImagePreview: Component = () => {
               return (
                 <div class={styles.cell}>
                   <div class={styles.label}>{label}</div>
-                  <Show when={entry()}>
-                    {(e) => (
-                      <>
-                        <img
-                          src={e().url}
-                          alt={`${label} format`}
-                          class={styles.preview}
-                        />
-                        <span class={styles.size}>
-                          {formatFileSize(e().size)}
-                        </span>
-                      </>
-                    )}
-                  </Show>
+                  <img
+                    src={entry()?.url ?? previewUrls()?.get("original")?.url}
+                    alt=""
+                    class={styles.preview}
+                    classList={{
+                      [styles.placeholder]: key !== "original" && !entry()?.url,
+                    }}
+                  />
+                  <span class={styles.size}>
+                    {formatFileSize(entry()?.size ?? 0)}
+                  </span>
                 </div>
               );
             }
