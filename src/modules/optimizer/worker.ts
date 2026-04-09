@@ -87,24 +87,31 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const { taskId, file, configs } = e.data;
 
   try {
-    await Promise.all(
-      configs.map(async (cfg) => {
-        const imageData = await fileToImageData(file, cfg.maxDimension);
-        const buffer = await encodeFormat(imageData, cfg);
-        const key = configKey(cfg);
-        const mimeType = MIME_TYPES[cfg.format];
+    const decodedByMaxDim = new Map<number | undefined, Promise<ImageData>>();
 
-        const msg: WorkerResponse = {
-          type: "result",
-          taskId,
-          configKey: key,
-          buffer,
-          size: buffer.byteLength,
-          mimeType,
-        };
-        self.postMessage(msg, [buffer]);
-      }),
-    );
+    const getDecoded = (maxDimension?: number) => {
+      if (!decodedByMaxDim.has(maxDimension)) {
+        decodedByMaxDim.set(maxDimension, fileToImageData(file, maxDimension));
+      }
+      return decodedByMaxDim.get(maxDimension)!;
+    };
+
+    for (const cfg of configs) {
+      const imageData = await getDecoded(cfg.maxDimension);
+      const buffer = await encodeFormat(imageData, cfg);
+      const key = configKey(cfg);
+      const mimeType = MIME_TYPES[cfg.format];
+
+      const msg: WorkerResponse = {
+        type: "result",
+        taskId,
+        configKey: key,
+        buffer,
+        size: buffer.byteLength,
+        mimeType,
+      };
+      self.postMessage(msg, [buffer]);
+    }
 
     const done: WorkerResponse = { type: "complete", taskId };
     self.postMessage(done);

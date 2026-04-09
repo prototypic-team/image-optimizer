@@ -1,6 +1,6 @@
 import { createStore, produce, unwrap } from "solid-js/store";
 
-import { DEFAULT_CONFIGS, optimizeInWorker } from "~/modules/optimizer";
+import { DEFAULT_CONFIGS, optimizeInWorker, prioritizeTask } from "~/modules/optimizer";
 import {
   clearAppData,
   loadBlob,
@@ -141,7 +141,10 @@ export const addImages = (files: File[]) => {
     })
   );
 
+  const selectedId = store.selectedImageId;
+  if (selectedId) processImage(selectedId);
   for (const img of newImages) {
+    if (img.id === selectedId) continue;
     processImage(img.id);
   }
 
@@ -222,6 +225,7 @@ export const clearAll = () => {
 
 export const setSelectedImage = (imageId: string | undefined) => {
   setStore("selectedImageId", imageId);
+  if (imageId) prioritizeTask(imageId);
   saveMeta(buildAppMeta());
 };
 
