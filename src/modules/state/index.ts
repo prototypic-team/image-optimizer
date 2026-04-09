@@ -1,12 +1,14 @@
-import { createStore, produce } from "solid-js/store";
+import { createStore, produce, unwrap } from "solid-js/store";
 
 import { DEFAULT_CONFIGS, optimizeInWorker } from "~/modules/optimizer";
 import {
-  clearPersistedApp,
-  loadPersistedBlob,
-  loadPersistedMeta,
+  clearAppData,
+  loadBlob,
+  loadMeta,
   PERSISTENCE_VERSION,
-  savePersistedApp,
+  removeFiles,
+  saveFiles,
+  saveMeta,
   type TPersistedAppMeta,
   type TPersistedImageMeta,
 } from "~/modules/persistence/persistence";
@@ -74,21 +76,12 @@ export const [store, setStore] = createStore<TImagesState>({
   selectedImageId: undefined,
 });
 
-const buildAppMeta = (): TPersistedAppMeta | null => {
-  if (store.imageOrder.length === 0) return null;
-
+const buildAppMeta = (): TPersistedAppMeta => {
   const imagesMeta: TPersistedAppMeta["images"] = {};
-  for (const id of store.imageOrder) {
-    const img = store.images[id];
+  const { images, imageOrder, selectedImageId } = unwrap(store);
+  for (const id of imageOrder) {
+    const img = images[id];
     if (!img) continue;
-    const persistedOptimized = img.optimized
-      ? Object.fromEntries(
-          Object.entries(img.optimized).map(([k, v]) => [
-            k,
-            { size: v.size, mimeType: v.blob.type },
-          ])
-        )
-      : undefined;
 
     imagesMeta[id] = {
       id: img.id,
@@ -100,59 +93,25 @@ const buildAppMeta = (): TPersistedAppMeta | null => {
         original: img.weight.original,
         optimized: img.weight.optimized,
       },
-      optimized: persistedOptimized,
+      optimized:
+        img.optimized &&
+        Object.fromEntries(
+          Object.entries(img.optimized).map(([k, v]) => [
+            k,
+            { size: v.size, mimeType: v.blob.type },
+          ])
+        ),
       error: img.error,
       viewport: img.viewport,
     };
   }
 
-  const selectedImageId =
-    store.selectedImageId && imagesMeta[store.selectedImageId]
-      ? store.selectedImageId
-      : (store.imageOrder[0] ?? null);
-
   return {
     version: PERSISTENCE_VERSION,
-    imageOrder: [...store.imageOrder],
+    imageOrder,
     selectedImageId,
     images: imagesMeta,
   };
-};
-
-const writePersistedSnapshot = async (): Promise<void> => {
-  if (store.imageOrder.length === 0) {
-    await clearPersistedApp();
-    return;
-  }
-
-  const meta = buildAppMeta();
-  if (!meta) return;
-
-  const files: Record<string, File> = {};
-  const optimizedBlobs: Record<string, Blob> = {};
-  for (const id of store.imageOrder) {
-    const img = store.images[id];
-    if (!img) continue;
-    files[id] = img.file;
-    if (img.optimized) {
-      for (const [cfgKey, result] of Object.entries(img.optimized)) {
-        optimizedBlobs[`${id}:${cfgKey}`] = result.blob;
-      }
-    }
-  }
-
-  await savePersistedApp({ meta, files, optimizedBlobs });
-};
-
-let persistTimer: ReturnType<typeof setTimeout> | undefined;
-const schedulePersistSnapshot = (): void => {
-  if (persistTimer !== undefined) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = undefined;
-    writePersistedSnapshot().catch((e) => {
-      console.error("Failed to persist app state:", e);
-    });
-  }, 400);
 };
 
 export const addImages = (files: File[]) => {
@@ -160,12 +119,14 @@ export const addImages = (files: File[]) => {
     Object.values(store.images).map((img) => img.fileName)
   );
   const newImages: TImage[] = [];
+  const newFiles: Record<string, File> = {};
 
   for (const file of files) {
     if (existingNames.has(file.name)) continue;
     const image = createImageFromFile(file);
     newImages.push(image);
     existingNames.add(file.name);
+    newFiles[image.id] = file;
   }
 
   setStore(
@@ -184,7 +145,8 @@ export const addImages = (files: File[]) => {
     processImage(img.id);
   }
 
-  schedulePersistSnapshot();
+  saveMeta(buildAppMeta());
+  saveFiles(newFiles);
 };
 
 const processImage = async (imageId: string) => {
@@ -193,6 +155,7 @@ const processImage = async (imageId: string) => {
 
   setStore("images", imageId, "status", "processing");
 
+  const files: Record<string, Blob> = {};
   try {
     await optimizeInWorker(
       imageId,
@@ -210,12 +173,12 @@ const processImage = async (imageId: string) => {
               result.size
             );
             img.weight.optimized = smallest;
+            img.status = "done";
           })
         );
+        files[`${imageId}:${cfgKey}`] = result.blob;
       }
     );
-
-    setStore("images", imageId, "status", "done");
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setStore(
@@ -228,13 +191,13 @@ const processImage = async (imageId: string) => {
       })
     );
   }
-
-  schedulePersistSnapshot();
+  saveMeta(buildAppMeta());
+  saveFiles(files);
 };
 
 export const setViewport = (imageId: string, viewport: TViewport) => {
   setStore("images", imageId, "viewport", viewport);
-  schedulePersistSnapshot();
+  saveMeta(buildAppMeta());
 };
 
 export const removeImage = (imageId: string) => {
@@ -248,23 +211,25 @@ export const removeImage = (imageId: string) => {
       }
     })
   );
-  schedulePersistSnapshot();
+  saveMeta(buildAppMeta());
+  removeFiles([imageId]);
 };
 
 export const clearAll = () => {
   setStore({ images: {}, imageOrder: [], selectedImageId: undefined });
-  schedulePersistSnapshot();
+  clearAppData();
 };
 
 export const setSelectedImage = (imageId: string | undefined) => {
   setStore("selectedImageId", imageId);
-  schedulePersistSnapshot();
+  saveMeta(buildAppMeta());
 };
 
 export const hydrateFromPersistence = async (
   onReady: () => void
 ): Promise<void> => {
-  const meta = await loadPersistedMeta();
+  let needSave = false;
+  const meta = await loadMeta();
   if (!meta) {
     onReady();
     return;
@@ -275,15 +240,21 @@ export const hydrateFromPersistence = async (
 
   for (const id of meta.imageOrder) {
     const m = meta.images[id];
-    if (!m) continue;
-    const buf = await loadPersistedBlob(id);
-    if (!buf) continue;
+    if (!m) {
+      needSave = true;
+      continue;
+    }
+    const buf = await loadBlob(id);
+    if (!buf) {
+      continue;
+      needSave = true;
+    }
 
     let optimizedBufs: Record<string, ArrayBuffer> | undefined;
     if (m.optimized) {
       optimizedBufs = {};
       for (const cfgKey of Object.keys(m.optimized)) {
-        const oBuf = await loadPersistedBlob(`${id}:${cfgKey}`);
+        const oBuf = await loadBlob(`${id}:${cfgKey}`);
         if (oBuf) optimizedBufs[cfgKey] = oBuf;
       }
     }
@@ -292,10 +263,14 @@ export const hydrateFromPersistence = async (
     imageOrder.push(id);
   }
 
-  const selectedImageId =
+  let selectedImageId =
     meta.selectedImageId && images[meta.selectedImageId]
       ? meta.selectedImageId
-      : (imageOrder[0] ?? null);
+      : undefined;
+  if (!selectedImageId) {
+    selectedImageId = imageOrder[0] ?? null;
+    needSave = true;
+  }
 
   setStore({
     images,
@@ -312,5 +287,7 @@ export const hydrateFromPersistence = async (
     }
   }
 
-  schedulePersistSnapshot();
+  if (needSave) {
+    saveMeta(buildAppMeta());
+  }
 };

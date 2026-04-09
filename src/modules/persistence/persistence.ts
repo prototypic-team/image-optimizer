@@ -35,7 +35,7 @@ export type TPersistedImageMeta = {
 export type TPersistedAppMeta = {
   version: typeof PERSISTENCE_VERSION;
   imageOrder: string[];
-  selectedImageId: string | null;
+  selectedImageId: string | undefined;
   images: Record<string, TPersistedImageMeta>;
 };
 
@@ -59,7 +59,7 @@ const isPersistedAppMeta = (value: unknown): value is TPersistedAppMeta => {
   );
 };
 
-export const loadPersistedMeta =
+export const loadMeta =
   async (): Promise<TPersistedAppMeta | null> => {
     try {
       const raw = await idbGetMeta();
@@ -71,7 +71,7 @@ export const loadPersistedMeta =
     }
   };
 
-export const loadPersistedBlob = async (
+export const loadBlob = async (
   id: string
 ): Promise<ArrayBuffer | null> => {
   try {
@@ -87,50 +87,62 @@ export const loadPersistedBlob = async (
   }
 };
 
-export const savePersistedMeta = async (
-  meta: TPersistedAppMeta
-): Promise<void> => {
-  await idbPutMeta(meta);
+export const clearAppData = (): Promise<void> => idbClearAppData();
+
+// -------------------------
+// High-level, app-facing API
+// -------------------------
+
+let persistMetaChain: Promise<void> = Promise.resolve();
+
+/**
+ * Lightweight metadata persistence (serialized, no throttling).
+ * Fire-and-forget: schedules work internally and logs failures.
+ */
+export const saveMeta = (meta: TPersistedAppMeta): void => {
+  persistMetaChain = persistMetaChain
+    .catch(() => {
+      // keep chain alive
+    })
+    .then( () => idbPutMeta(meta))
+    .catch((e) => {
+      console.error("Failed to persist meta:", e);
+    });
 };
 
-export const savePersistedApp = async (params: {
-  meta: TPersistedAppMeta;
-  files: Record<string, File>;
-  optimizedBlobs: Record<string, Blob>;
-}): Promise<void> => {
-  const { meta, files, optimizedBlobs } = params;
+let persistFilesChain: Promise<void> = Promise.resolve();
 
-  // Save original file blobs
-  for (const id of meta.imageOrder) {
-    const file = files[id];
-    if (!file) continue;
-    if (await idbHasBlob(id)) continue;
-    await idbPutBlob(id, await getFileBuf(file));
-  }
+export const removeFiles = (ids: string[]): void => {
+  persistFilesChain = persistFilesChain
+    .catch(() => {
+      // keep chain alive
+    })
+    .then(async () => {
+      for (const id of ids) await idbDeleteBlob(id);
+    });
+};
 
-  // Save optimized blobs (keyed as "imageId:configKey")
-  for (const [blobKey, blob] of Object.entries(optimizedBlobs)) {
-    if (await idbHasBlob(blobKey)) continue;
-    await idbPutBlob(blobKey, await blob.arrayBuffer());
-  }
-
-  await idbPutMeta(meta);
-
-  // Collect all active keys: original ids + optimized compound keys
-  const activeKeys = new Set<string>(meta.imageOrder);
-  for (const id of meta.imageOrder) {
-    const img = meta.images[id];
-    if (img?.optimized) {
-      for (const cfgKey of Object.keys(img.optimized)) {
-        activeKeys.add(`${id}:${cfgKey}`);
+/**
+ * Heavier file/blob persistence (serialized).
+ * Fire-and-forget: enqueues work internally and logs failures.
+ */
+export const saveFiles = (files: Record<string, File | Blob>): void => {
+  persistFilesChain = persistFilesChain
+    .catch(() => {
+      // keep chain alive
+    })
+    .then(async () => {
+      for (const [id, file] of Object.entries(files)) {
+        if (await idbHasBlob(id)) continue;
+        await idbPutBlob(
+          id,
+          file instanceof File
+            ? await getFileBuf(file)
+            : await file.arrayBuffer()
+        );
       }
-    }
-  }
-
-  const allKeys = await idbGetAllBlobKeys();
-  for (const key of allKeys) {
-    if (!activeKeys.has(key)) await idbDeleteBlob(key);
-  }
+    })
+    .catch((e) => {
+      console.error("Failed to persist files:", e);
+    });
 };
-
-export const clearPersistedApp = (): Promise<void> => idbClearAppData();
