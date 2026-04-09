@@ -3,6 +3,12 @@ export type TFormatResult = {
   size: number;
 };
 
+export type TViewport = {
+  scale: number;
+  tx: number;
+  ty: number;
+};
+
 export type TImage = {
   id: string;
   name: string;
@@ -17,6 +23,7 @@ export type TImage = {
   /** Keyed by configKey (e.g. "avif_q32", "png") */
   optimized?: Record<string, TFormatResult>;
   error?: string;
+  viewport?: TViewport;
 };
 
 export type TImagesState = {

@@ -29,6 +29,7 @@ export type TPersistedImageMeta = {
   /** Keyed by configKey (e.g. "avif_q32"). Sizes + mime stored in meta, blobs in IDB under "${id}:${configKey}". */
   optimized?: Record<string, TPersistedFormatMeta>;
   error?: string;
+  viewport?: { scale: number; tx: number; ty: number };
 };
 
 export type TPersistedAppMeta = {

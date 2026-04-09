@@ -11,7 +11,7 @@ import {
   type TPersistedImageMeta,
 } from "~/modules/persistence/persistence";
 
-import type { TFormatResult, TImage, TImagesState } from "./types.d";
+import type { TFormatResult, TImage, TImagesState, TViewport } from "./types.d";
 
 const createImageFromFile = (file: File): TImage => ({
   id: crypto.randomUUID(),
@@ -64,6 +64,7 @@ const makeTImage = (
     },
     optimized,
     error: m.error,
+    viewport: m.viewport,
   };
 };
 
@@ -101,6 +102,7 @@ const buildAppMeta = (): TPersistedAppMeta | null => {
       },
       optimized: persistedOptimized,
       error: img.error,
+      viewport: img.viewport,
     };
   }
 
@@ -227,6 +229,11 @@ const processImage = async (imageId: string) => {
     );
   }
 
+  schedulePersistSnapshot();
+};
+
+export const setViewport = (imageId: string, viewport: TViewport) => {
+  setStore("images", imageId, "viewport", viewport);
   schedulePersistSnapshot();
 };
 
