@@ -11,7 +11,7 @@
   height: 100vh;
   height: 100dvh;
   margin: 0;
-  padding: 24px 20px 16px 8px;
+  padding: 24px 0 16px 16px;
   overflow-y: auto;
 }
 
@@ -56,6 +56,11 @@
   opacity: 1;
 }
 
+:global(html:has(#clear-all:hover)) .item,
+:global(html:has(#clear-all:focus-visible)) .item {
+  opacity: 0.5;
+}
+
 .item:focus-visible {
   outline: none;
 }
@@ -82,7 +87,7 @@
 .thumb {
   display: block;
   width: auto;
-  max-width: 120px;
+  max-width: 130px;
   height: auto;
   max-height: 120px;
 
@@ -151,7 +156,9 @@
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
-  padding: 6px;
+  padding: 6px 8px;
+
+  color: var(--color-primary);
 
   background-color: transparent;
   border: none;
@@ -159,6 +166,10 @@
   cursor: pointer;
 
   transition: background-color var(--transition-basic);
+}
+
+.addImages {
+  transform: translateX(-8px);
 }
 
 .addImages:hover {
@@ -183,10 +194,10 @@
   gap: 4px;
   width: 100%;
   margin-top: auto;
-  padding: 32px 32px 22px 28px;
+  padding: 32px 32px 22px 16px;
 
   border-radius: 0;
-  transform: translate(-16px, 16px);
+  transform: translate(-12px, 16px);
   opacity: 1;
 }
 
