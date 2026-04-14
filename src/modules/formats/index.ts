@@ -1,35 +1,9 @@
-import type { TFormatResult } from "~/modules/state/types.d";
-
-import type { WorkerRequest, WorkerResponse } from "./worker";
-
-export type TEncodeFormat = "avif" | "jpeg" | "png" | "webp";
-
-export type TOptimizeConfig = {
-  format: TEncodeFormat;
-  quality?: number;
-  maxDimension?: number;
-};
-
-const FORMAT_LABELS: Record<TEncodeFormat, string> = {
-  avif: "AVIF",
-  jpeg: "JPEG",
-  png: "PNG",
-  webp: "WebP",
-};
-
-export const configKey = (cfg: TOptimizeConfig): string =>
-  cfg.quality != null ? `${cfg.format}_q${cfg.quality}` : cfg.format;
-
-export const configLabel = (cfg: TOptimizeConfig): string => {
-  const base = FORMAT_LABELS[cfg.format];
-  return cfg.quality != null ? `${base} q${cfg.quality}` : base;
-};
-
-export const DEFAULT_CONFIGS: TOptimizeConfig[] = [
-  { format: "avif", quality: 20 },
-  { format: "jpeg", quality: 80 },
-  { format: "webp", quality: 80 },
-];
+import type {
+  TFormat,
+  TFormatResult,
+  TWorkerRequest,
+  TWorkerResponse,
+} from "Types";
 
 let worker: Worker | undefined;
 
@@ -53,7 +27,7 @@ const pending = new Map<string, PendingTask>();
 type QueuedTask = {
   taskId: string;
   file: File;
-  configs: TOptimizeConfig[];
+  formats: TFormat[];
   onResult: (configKey: string, result: TFormatResult) => void;
   resolve: () => void;
   reject: (err: Error) => void;
@@ -67,7 +41,7 @@ function ensureListener() {
   if ((w as any).__bridgeListening) return;
   (w as any).__bridgeListening = true;
 
-  w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+  w.onmessage = (e: MessageEvent<TWorkerResponse>) => {
     const msg = e.data;
     const task = pending.get(msg.taskId);
     if (!task) return;
@@ -106,11 +80,11 @@ function pumpQueue() {
     reject: next.reject,
   });
 
-  const msg: WorkerRequest = {
+  const msg: TWorkerRequest = {
     type: "optimize",
     taskId: next.taskId,
     file: next.file,
-    configs: next.configs,
+    formats: next.formats,
   };
   getWorker().postMessage(msg);
 }
@@ -118,13 +92,13 @@ function pumpQueue() {
 export function optimizeInWorker(
   taskId: string,
   file: File,
-  configs: TOptimizeConfig[],
+  formats: TFormat[],
   onResult: (configKey: string, result: TFormatResult) => void
 ): Promise<void> {
   ensureListener();
 
   return new Promise<void>((resolve, reject) => {
-    queue.push({ taskId, file, configs, onResult, resolve, reject });
+    queue.push({ taskId, file, formats, onResult, resolve, reject });
     pumpQueue();
   });
 }

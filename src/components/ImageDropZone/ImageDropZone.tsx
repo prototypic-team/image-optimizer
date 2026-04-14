@@ -1,54 +1,24 @@
-import {
-  Component,
-  createMemo,
-  createSignal,
-  JSX,
-  onCleanup,
-  onMount,
-  Show,
-} from "solid-js";
+import { Component, createMemo, createSignal, JSX, Show } from "solid-js";
 
-import { addImages, clearAll, store } from "~/modules/state";
+import { store } from "~/modules/state";
 import { cn } from "~/pixel";
-import { isMac } from "~/utils/platform";
-import { collectFilesFromDrop, useFilePicker } from "~/utils/useFilePicker";
+import { collectFilesFromDrop } from "~/utils/files";
 
 import styles from "./ImageDropZone.module.css";
 
 type Props = {
   children?: JSX.Element;
+  openFilePicker: () => void;
+  onFilesDropped: (files: FileList | File[] | null) => void;
 };
 
 export const ImageDropZone: Component<Props> = (props) => {
   const [dragging, setDragging] = createSignal(false);
   let dragCounter = 0;
 
-  const { openFilePicker, handleFileList } = useFilePicker({
-    onFilesSelected: addImages,
-  });
-
-  onMount(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "KeyU" && (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey) {
-        e.preventDefault();
-        openFilePicker();
-      }
-      const isClearShortcut = isMac
-        ? e.metaKey && (e.code === "Delete" || e.code === "Backspace")
-        : e.ctrlKey && e.code === "Delete";
-      if (isClearShortcut && Object.keys(store.images).length > 0) {
-        e.preventDefault();
-        clearAll();
-      }
-    };
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    onCleanup(() => window.removeEventListener("keydown", handleGlobalKeyDown));
-  });
-
-  const handleClick: JSX.EventHandler<HTMLDivElement, MouseEvent> = (e) => {
+  const handleClick: JSX.EventHandler<HTMLDivElement, MouseEvent> = () => {
     if (Object.keys(store.images).length > 0) return;
-    if ((e.target as HTMLElement).closest(`.${styles.select}`)) return;
-    openFilePicker();
+    props.openFilePicker();
   };
 
   const handleKeyDown: JSX.EventHandler<HTMLDivElement, KeyboardEvent> = (
@@ -57,7 +27,7 @@ export const ImageDropZone: Component<Props> = (props) => {
     if (Object.keys(store.images).length > 0) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      openFilePicker();
+      props.openFilePicker();
     }
   };
 
@@ -82,7 +52,7 @@ export const ImageDropZone: Component<Props> = (props) => {
     dragCounter = 0;
     setDragging(false);
     const files = await collectFilesFromDrop(e.dataTransfer ?? null);
-    handleFileList(files.length > 0 ? files : null);
+    props.onFilesDropped(files.length > 0 ? files : null);
   };
 
   const isEmpty = createMemo(() => Object.keys(store.images).length === 0);
@@ -106,10 +76,7 @@ export const ImageDropZone: Component<Props> = (props) => {
       <Show when={isEmpty()} fallback={props.children}>
         <div class={styles.empty}>
           <span>
-            Drag and drop or{" "}
-            <span class={styles.select} onClick={openFilePicker}>
-              select images
-            </span>
+            Drag and drop or <span class={styles.select}>select images</span>
           </span>
           <span class={styles.formats}>.jpg, .png, .webp, .gif, .avif</span>
         </div>

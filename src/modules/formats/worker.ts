@@ -3,15 +3,19 @@ import { encode as encodeJpeg } from "@jsquash/jpeg";
 import { encode as encodePng } from "@jsquash/png";
 import { encode as encodeWebp } from "@jsquash/webp";
 
-type TEncodeFormat = "avif" | "jpeg" | "png" | "webp";
+import { configKey } from "./utils";
 
-type TOptimizeConfig = {
-  format: TEncodeFormat;
-  quality?: number;
-  maxDimension?: number;
-};
+import {
+  TAvifFormat,
+  TEncodableFormat,
+  TJpegFormat,
+  TPngFormat,
+  TWebpFormat,
+  TWorkerRequest,
+  TWorkerResponse,
+} from "Types";
 
-const MIME_TYPES: Record<TEncodeFormat, string> = {
+const MIME_TYPES: Record<TEncodableFormat, string> = {
   avif: "image/avif",
   jpeg: "image/jpeg",
   png: "image/png",
@@ -20,7 +24,7 @@ const MIME_TYPES: Record<TEncodeFormat, string> = {
 
 async function fileToImageData(
   file: File,
-  maxDimension?: number,
+  maxDimension?: number
 ): Promise<ImageData> {
   const bitmap = await createImageBitmap(file);
   let { width, height } = bitmap;
@@ -43,48 +47,26 @@ async function fileToImageData(
 
 async function encodeFormat(
   imageData: ImageData,
-  config: TOptimizeConfig,
+  config: TAvifFormat | TJpegFormat | TPngFormat | TWebpFormat
 ): Promise<ArrayBuffer> {
-  const { format, quality } = config;
-
-  switch (format) {
-    case "avif":
-      return encodeAvif(imageData, { cqLevel: quality });
+  switch (config.format) {
+    case "avif": {
+      return encodeAvif(imageData, config);
+    }
     case "jpeg":
-      return encodeJpeg(imageData, { quality });
+      return encodeJpeg(imageData, config);
     case "webp":
-      return encodeWebp(imageData, { quality });
+      return encodeWebp(imageData, config);
     case "png":
       return encodePng(imageData);
     default:
-      throw new Error(`Unknown format: ${format}`);
+      // @ts-expect-error
+      throw new Error(`Unknown format: ${config.format}`);
   }
 }
 
-export type WorkerRequest = {
-  type: "optimize";
-  taskId: string;
-  file: File;
-  configs: TOptimizeConfig[];
-};
-
-export type WorkerResponse =
-  | {
-      type: "result";
-      taskId: string;
-      configKey: string;
-      buffer: ArrayBuffer;
-      size: number;
-      mimeType: string;
-    }
-  | { type: "complete"; taskId: string }
-  | { type: "error"; taskId: string; error: string };
-
-const configKey = (cfg: TOptimizeConfig): string =>
-  cfg.quality != null ? `${cfg.format}_q${cfg.quality}` : cfg.format;
-
-self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-  const { taskId, file, configs } = e.data;
+self.onmessage = async (e: MessageEvent<TWorkerRequest>) => {
+  const { taskId, file, formats } = e.data;
 
   try {
     const decodedByMaxDim = new Map<number | undefined, Promise<ImageData>>();
@@ -96,13 +78,14 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       return decodedByMaxDim.get(maxDimension)!;
     };
 
-    for (const cfg of configs) {
+    for (const cfg of formats) {
+      if (cfg.format === "original") continue;
       const imageData = await getDecoded(cfg.maxDimension);
       const buffer = await encodeFormat(imageData, cfg);
       const key = configKey(cfg);
       const mimeType = MIME_TYPES[cfg.format];
 
-      const msg: WorkerResponse = {
+      const msg: TWorkerResponse = {
         type: "result",
         taskId,
         configKey: key,
@@ -113,10 +96,10 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       self.postMessage(msg, [buffer]);
     }
 
-    const done: WorkerResponse = { type: "complete", taskId };
+    const done: TWorkerResponse = { type: "complete", taskId };
     self.postMessage(done);
   } catch (err) {
-    const error: WorkerResponse = {
+    const error: TWorkerResponse = {
       type: "error",
       taskId,
       error: err instanceof Error ? err.message : String(err),

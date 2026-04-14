@@ -1,3 +1,14 @@
+export const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 const isFile = (entry: FileSystemEntry): entry is FileSystemFileEntry =>
   entry.isFile;
 
@@ -5,7 +16,6 @@ const isDirectory = (
   entry: FileSystemEntry | null
 ): entry is FileSystemDirectoryEntry => !!entry && entry.isDirectory;
 
-/** Reads all image files from directory (including nested). */
 async function readFilesFromDirectory(
   dir: FileSystemEntry | null
 ): Promise<File[]> {
@@ -51,8 +61,9 @@ async function readFilesFromDirectory(
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"];
 const IMAGE_MIME_PREFIXES = ["image/"];
+export const FILE_INPUT_ACCEPT = IMAGE_EXTENSIONS.join(",");
 
-const isImageFile = (file: File): boolean => {
+export const isImageFile = (file: File): boolean => {
   if (IMAGE_MIME_PREFIXES.some((p) => file.type.startsWith(p))) return true;
   const name = file.name.toLowerCase();
   return IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
@@ -79,34 +90,3 @@ export async function collectFilesFromDrop(
   }
   return files;
 }
-
-const ACCEPT_EXTENSIONS = IMAGE_EXTENSIONS.join(",");
-
-type UseFilePickerOptions = {
-  onFilesSelected: (files: File[]) => void;
-};
-
-export const useFilePicker = (options: UseFilePickerOptions) => {
-  const { onFilesSelected } = options;
-
-  const handleFileList = (files: FileList | File[] | null) => {
-    if (!files) return;
-    const imageFiles = Array.from(files).filter(isImageFile);
-    if (imageFiles.length > 0) {
-      onFilesSelected(imageFiles);
-    }
-  };
-
-  const openFilePicker = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.multiple = true;
-    input.accept = ACCEPT_EXTENSIONS;
-    input.onchange = () => {
-      handleFileList(input.files);
-    };
-    input.click();
-  };
-
-  return { openFilePicker, handleFileList };
-};

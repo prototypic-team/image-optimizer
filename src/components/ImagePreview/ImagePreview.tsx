@@ -3,75 +3,34 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  For,
   onCleanup,
   Show,
 } from "solid-js";
 
-import { configKey, configLabel, DEFAULT_CONFIGS } from "~/modules/optimizer";
-import { setViewport, store } from "~/modules/state";
-import type { TFormatResult } from "~/modules/state/types.d";
-import { Button } from "~/pixel";
-import { formatFileSize } from "~/utils/format";
+import { Hud } from "~/components/ImagePreview/Hud";
+import { configKey } from "~/modules/formats/utils";
+import { setFormatSettings, setViewport, store } from "~/modules/state";
+import { cn } from "~/pixel";
+import { debounce } from "~/utils/debounce";
+import { downloadBlob } from "~/utils/files";
 
+import { Footer } from "./Footer";
 import styles from "./ImagePreview.module.css";
 
-type CellConfig = { key: string; label: string; ext: string };
+import type { TFormat } from "Types";
 
-const CELLS: CellConfig[] = DEFAULT_CONFIGS.map((cfg) => ({
-  key: configKey(cfg),
-  label: configLabel(cfg),
-  ext: cfg.format,
-}));
-
-const QUADRANT_CLIPS = [
-  "polygon(0 0, 50% 0, 50% 50%, 0 50%)",
-  "polygon(50% 0, 100% 0, 100% 50%, 50% 50%)",
-  "polygon(0 50%, 50% 50%, 50% 100%, 0 100%)",
-  "polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%)",
-];
-
-const QUADRANTS = [
-  { key: "original", label: "Original" },
-  ...CELLS.map((c) => ({ key: c.key, label: c.label })),
-];
-
-const LABEL_CLASSES = ["labelTl", "labelTr", "labelBl", "labelBr"] as const;
-
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+type THudPreviewRow = {
+  imageId: string;
+  url: string;
+  size: number;
+  placeholder: boolean;
+  format: TFormat;
 };
 
-const getSmallest = (
-  file: File,
-  extension: string,
-  optimized: Record<string, TFormatResult>
-): { ext: string; blob: Blob; size: number } => {
-  let best: { ext: string; blob: Blob; size: number } = {
-    ext: extension,
-    blob: file,
-    size: file.size,
-  };
-
-  for (const cell of CELLS) {
-    const r = optimized[cell.key];
-    if (r && r.size < best.size) {
-      best = { ext: cell.ext, blob: r.blob, size: r.size };
-    }
-  }
-
-  return best;
-};
+const sectorClasses = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
 export const ImagePreview: Component = () => {
-  const hasImages = createMemo(() => store.imageOrder.length > 0);
-
   const selectedImage = () => {
     const id = store.selectedImageId;
     return id ? store.images[id] : null;
@@ -151,7 +110,14 @@ export const ImagePreview: Component = () => {
   };
 
   // --- Touch pinch-to-zoom ---
-  let pinchState: { dist: number; scale: number; cx: number; cy: number; tx: number; ty: number } | null = null;
+  let pinchState: {
+    dist: number;
+    scale: number;
+    cx: number;
+    cy: number;
+    tx: number;
+    ty: number;
+  } | null = null;
 
   const touchDist = (a: Touch, b: Touch) =>
     Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -176,7 +142,10 @@ export const ImagePreview: Component = () => {
     if (e.touches.length === 2 && pinchState) {
       e.preventDefault();
       const dist = touchDist(e.touches[0], e.touches[1]);
-      const newScale = Math.min(Math.max(pinchState.scale * (dist / pinchState.dist), 0.1), 30);
+      const newScale = Math.min(
+        Math.max(pinchState.scale * (dist / pinchState.dist), 0.1),
+        30
+      );
       const ratio = newScale / pinchState.scale;
       setTx(pinchState.cx - (pinchState.cx - pinchState.tx) * ratio);
       setTy(pinchState.cy - (pinchState.cy - pinchState.ty) * ratio);
@@ -210,8 +179,12 @@ export const ImagePreview: Component = () => {
       viewportRef.addEventListener("pointermove", handlePointerMove);
       viewportRef.addEventListener("pointerup", handlePointerUp);
       viewportRef.addEventListener("lostpointercapture", handlePointerUp);
-      viewportRef.addEventListener("touchstart", handleTouchStart, { passive: false });
-      viewportRef.addEventListener("touchmove", handleTouchMove, { passive: false });
+      viewportRef.addEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
+      viewportRef.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
       viewportRef.addEventListener("touchend", handleTouchEnd);
       viewportRef.addEventListener("dblclick", handleDblClick);
       ro.observe(viewportRef);
@@ -234,123 +207,126 @@ export const ImagePreview: Component = () => {
     return viewportRef;
   });
 
-  const previewUrls = createMemo(() => {
+  const previews = createMemo(() => {
     const img = selectedImage();
     if (!img) return null;
 
-    const urls: { key: string; url: string; size: number }[] = [];
-
     const origUrl = URL.createObjectURL(img.file);
-    urls.push({ key: "original", url: origUrl, size: img.file.size });
+    const result: THudPreviewRow[] = [];
+    const urlsToRevoke = new Set<string>();
 
-    if (img.optimized) {
-      for (const cell of CELLS) {
-        const r = img.optimized[cell.key];
+    for (const format of img.formats) {
+      if (format.format === "original") {
+        result.push({
+          imageId: img.id,
+          url: origUrl,
+          size: img.file.size,
+          placeholder: false,
+          format,
+        });
+        urlsToRevoke.add(origUrl);
+      } else {
+        const fKey = configKey(format);
+        const r = img.optimized?.[fKey];
         if (r) {
-          urls.push({
-            key: cell.key,
-            url: URL.createObjectURL(r.blob),
+          const u = URL.createObjectURL(r.blob);
+          urlsToRevoke.add(u);
+          result.push({
+            imageId: img.id,
+            url: u,
             size: r.size,
+            placeholder: false,
+            format,
+          });
+        } else {
+          result.push({
+            imageId: img.id,
+            url: origUrl,
+            size: 0,
+            placeholder: true,
+            format,
           });
         }
       }
     }
 
     onCleanup(() => {
-      for (const u of urls) URL.revokeObjectURL(u.url);
+      for (const u of urlsToRevoke) URL.revokeObjectURL(u);
     });
 
-    return new Map(urls.map((u) => [u.key, u]));
+    return result;
   });
 
-  const allDone = createMemo(
-    () =>
-      store.imageOrder.length > 0 &&
-      store.imageOrder.every((id) => store.images[id]?.status === "done")
-  );
+  const onFormatChange = debounce(setFormatSettings, {
+    threshold: 300,
+    throttle: true,
+  });
 
-  const handleExport = () => {
-    const img = selectedImage();
-    if (!img?.optimized) return;
-    const best = getSmallest(img.file, img.extension, img.optimized);
-    downloadBlob(best.blob, `${img.name}.${best.ext}`);
-  };
+  const downloadHudFormat = (preview: THudPreviewRow) => {
+    const img = store.images[preview.imageId];
+    if (!img) return;
 
-  const handleExportAll = () => {
-    for (const id of store.imageOrder) {
-      const img = store.images[id];
-      if (!img?.optimized) continue;
-      const best = getSmallest(img.file, img.extension, img.optimized);
-      downloadBlob(best.blob, `${img.name}.${best.ext}`);
+    if (preview.format.format === "original") {
+      downloadBlob(img.file, `${img.name}.${img.extension}`);
+      return;
     }
+
+    if (preview.placeholder) return;
+
+    const key = configKey(preview.format);
+    const r = img.optimized[key];
+    if (!r) return;
+
+    const ext =
+      preview.format.format === "jpeg" ? "jpg" : preview.format.format;
+    downloadBlob(r.blob, `${img.name}.${ext}`);
   };
 
   return (
     <div class={styles.container}>
       <Show when={selectedImage()}>
-        <div
-          ref={viewportRef}
-          class={styles.viewport}
-          classList={{
-            [styles.panning]: dragging(),
-          }}
-        >
-          {QUADRANTS.map((q, i) => {
-            const entry = () => previewUrls()?.get(q.key);
-            return (
-              <div
-                class={styles.quadrant}
-                style={{ "clip-path": QUADRANT_CLIPS[i] }}
-              >
-                <img
-                  src={entry()?.url ?? previewUrls()?.get("original")?.url}
-                  alt=""
-                  class={styles.preview}
-                  classList={{
-                    [styles.placeholder]: q.key !== "original" && !entry()?.url,
-                  }}
-                  style={{ transform: imageTransform() }}
-                  draggable={false}
-                />
-              </div>
-            );
-          })}
-          <div class={styles.dividerH} />
-          <div class={styles.dividerV} />
-          {QUADRANTS.map((q, i) => {
-            const entry = () => previewUrls()?.get(q.key);
-            return (
-              <div class={`${styles.label} ${styles[LABEL_CLASSES[i]]}`}>
-                <span>{q.label}</span>
-                <span class={styles.size}>
-                  {formatFileSize(entry()?.size ?? 0)}
-                </span>
-              </div>
-            );
-          })}
+        <div class={styles.viewportContainer}>
+          <div
+            ref={viewportRef}
+            class={styles.viewport}
+            classList={{ [styles.panning]: dragging() }}
+          >
+            <For each={previews()}>
+              {(preview) => (
+                <div class={styles.preview}>
+                  <img
+                    src={preview.url}
+                    alt=""
+                    classList={{ [styles.placeholder]: !!preview.placeholder }}
+                    style={{ transform: imageTransform() }}
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </For>
+            <div class={styles.dividerH} />
+            <div class={styles.dividerV} />
+          </div>
+          <For each={previews()}>
+            {(preview, index) => (
+              <Hud
+                class={cn(
+                  styles.hud,
+                  styles[sectorClasses[index() % sectorClasses.length]]
+                )}
+                settings={preview.format}
+                size={preview.size}
+                downloadDisabled={preview.placeholder}
+                onDownload={() => downloadHudFormat(preview)}
+                onChange={(format) =>
+                  onFormatChange(preview.imageId, index(), format)
+                }
+              />
+            )}
+          </For>
         </div>
       </Show>
-      <Show when={hasImages()}>
-        <footer class={styles.footer}>
-          <div class={styles.footerActions}>
-            <Show when={selectedImage()?.optimized}>
-              <Button
-                data-label={`Export ${selectedImage()?.name ?? ""}`}
-                class={styles.exportImage}
-                kind="secondary"
-                onClick={handleExport}
-              />
-            </Show>
-            <Button
-              kind="primary"
-              disabled={!allDone()}
-              onClick={handleExportAll}
-            >
-              Export All
-            </Button>
-          </div>
-        </footer>
-      </Show>
+      <Footer />
     </div>
   );
 };

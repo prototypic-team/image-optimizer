@@ -36,6 +36,11 @@ code {
 }
 
 footer {
-  padding-top: 20px;
-  padding-bottom: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 20px 16px 12px;
+
+  color: color-mix(in oklab, currentcolor 50%, transparent);
+  font-size: var(--font-size-small);
 }

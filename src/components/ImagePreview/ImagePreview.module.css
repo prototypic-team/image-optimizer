@@ -6,6 +6,12 @@
   padding: 16px 16px 12px 0;
 }
 
+.viewportContainer {
+  position: relative;
+
+  flex: 1;
+}
+
 .viewport {
   --color-checkerboard: color-mix(
     in oklab,
@@ -15,9 +21,9 @@
   position: relative;
 
   display: flex;
-  flex: 1;
   align-items: center;
   justify-content: center;
+  height: 100%;
   overflow: hidden;
 
   background-image:
@@ -53,17 +59,33 @@
   cursor: grabbing;
 }
 
-.quadrant {
+.preview {
   position: absolute;
   inset: 0;
 }
 
-:global(html:has(#clear-all:hover)) .quadrant,
-:global(html:has(#clear-all:focus-visible)) .quadrant {
+:global(html:has(#clear-all:hover)) .preview,
+:global(html:has(#clear-all:focus-visible)) .preview {
   opacity: 0.3;
 }
 
-.preview {
+.preview:nth-child(1) {
+  clip-path: polygon(0 0, 50% 0, 50% 50%, 0 50%);
+}
+
+.preview:nth-child(2) {
+  clip-path: polygon(50% 0, 100% 0, 100% 50%, 50% 50%);
+}
+
+.preview:nth-child(3) {
+  clip-path: polygon(0 50%, 50% 50%, 50% 100%, 0 100%);
+}
+
+.preview:nth-child(4) {
+  clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
+}
+
+.preview > img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -108,82 +130,31 @@
   border-left: 1px solid color-mix(in oklab, var(--color-base) 20%, transparent);
 }
 
-.label {
+.hud {
   position: absolute;
   z-index: 2;
 
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  padding: 6px 8px;
+  width: 150px;
 
-  color: var(--color-primary);
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-small);
-  white-space: nowrap;
-
-  background-color: color-mix(in oklab, var(--color-base) 30%, transparent);
-  border-radius: 4px;
-  backdrop-filter: blur(20px);
-
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.size {
-  font-weight: var(--font-weight-normal);
-  font-size: var(--font-size-small);
-
-  opacity: 0.8;
-}
-
-.labelTl {
+.hud.top-left {
   top: 8px;
   left: 8px;
 }
 
-.labelTr {
+.hud.top-right {
   top: 8px;
   right: 8px;
 }
 
-.labelBl {
+.hud.bottom-left {
   bottom: 8px;
   left: 8px;
 }
 
-.labelBr {
+.hud.bottom-right {
   right: 8px;
   bottom: 8px;
-}
-
-/* Footer */
-.footer {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0;
-}
-
-.footerActions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-left: auto;
-}
-
-.exportImage::before {
-  content: attr(data-label);
-}
-
-@media (width <= 740px) {
-  .exportImage::before {
-    content: "Export Image";
-  }
-}
-
-@media (width <= 365px) {
-  .exportImage {
-    display: none;
-  }
 }

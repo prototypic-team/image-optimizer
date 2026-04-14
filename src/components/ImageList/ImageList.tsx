@@ -1,7 +1,6 @@
 import { Component, createMemo, For, Show } from "solid-js";
 
 import {
-  addImages,
   clearAll,
   removeImage,
   setSelectedImage,
@@ -10,17 +9,16 @@ import {
 import { cn } from "~/pixel";
 import { formatFileSize } from "~/utils/format";
 import { isMac } from "~/utils/platform";
-import { useFilePicker } from "~/utils/useFilePicker";
 
 import styles from "./ImageList.module.css";
 
 const modKey = isMac ? "⌘" : "Ctrl";
 
-export const ImageList: Component = () => {
-  const { openFilePicker } = useFilePicker({
-    onFilesSelected: addImages,
-  });
+type Props = {
+  openFilePicker: () => void;
+};
 
+export const ImageList: Component<Props> = (props) => {
   const images = createMemo(() =>
     store.imageOrder
       .map((id) => store.images[id])
@@ -70,9 +68,9 @@ export const ImageList: Component = () => {
         <button
           type="button"
           class={cn(styles.action, styles.addImages)}
-          onClick={openFilePicker}
+          onClick={props.openFilePicker}
         >
-          <span class={styles.title}>Add images</span>
+          <span>Add images</span>
           <span>{modKey} + U</span>
         </button>
         <Show when={images().length > 0}>
@@ -85,7 +83,7 @@ export const ImageList: Component = () => {
               clearAll();
             }}
           >
-            <span class={styles.name}>Clear All</span>
+            <span>Clear All</span>
             <span>{modKey} + Del</span>
           </button>
         </Show>

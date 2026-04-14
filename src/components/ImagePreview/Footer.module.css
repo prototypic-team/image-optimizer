@@ -1,0 +1,30 @@
+.footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.footerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.exportImage::before {
+  content: attr(data-label);
+}
+
+@media (width <= 740px) {
+  .exportImage::before {
+    content: "Export Image";
+  }
+}
+
+@media (width <= 365px) {
+  .exportImage {
+    display: none;
+  }
+}

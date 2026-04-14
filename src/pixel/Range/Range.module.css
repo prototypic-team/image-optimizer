@@ -1,0 +1,79 @@
+.container {
+  position: relative;
+
+  display: flex;
+}
+
+.container::before {
+  position: absolute;
+  top: calc(50% - 1px);
+  right: 0;
+  left: 0;
+
+  height: 2px;
+
+  background: color-mix(in oklab, var(--color-primary) 20%, transparent);
+  border-radius: 1px;
+
+  content: "";
+}
+
+.container::after {
+  position: absolute;
+  top: calc(50% - 1.5px);
+  left: 0;
+
+  width: var(--value-percent, 0%);
+  height: 3px;
+
+  background: var(--color-primary);
+  border-radius: 1.5px;
+
+  content: "";
+}
+
+.range {
+  position: relative;
+  z-index: 1;
+
+  width: 100%;
+  margin: 0;
+
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-controls);
+
+  appearance: none;
+}
+
+.range::-webkit-slider-runnable-track,
+.range::-moz-range-track {
+  background: none;
+  border: none;
+
+  appearance: none;
+}
+
+.range::-webkit-slider-thumb {
+  position: relative;
+
+  width: 16px;
+  height: 16px;
+
+  background: var(--color-primary);
+  border-radius: 8px;
+  box-shadow:
+    0 1px 4px #00000026,
+    0 2px 6px #00000014;
+  cursor: ew-resize;
+
+  appearance: none;
+}
+
+.range:focus {
+  outline: none;
+}
+
+.range:focus-visible {
+  outline: var(--focus-outline);
+}

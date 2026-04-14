@@ -1,0 +1,128 @@
+.root {
+  display: flex;
+  flex-direction: column;
+
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+
+  background-color: color-mix(in oklab, var(--color-base) 85%, transparent);
+  border-radius: var(--border-radius-controls);
+  box-shadow: 0 1px 3px #00000010;
+  backdrop-filter: blur(20px);
+}
+
+.selectContainer {
+  position: relative;
+}
+
+.selectIcon {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+
+  display: flex;
+  width: 14px;
+  height: 14px;
+
+  color: var(--color-secondary);
+
+  transform: translateY(-50%);
+
+  transition: color var(--transition-active);
+
+  pointer-events: none;
+}
+
+.selectContainer:has(:hover) .selectIcon,
+.select:focus-visible ~ .selectIcon {
+  color: var(--color-primary);
+}
+
+.select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 26px 6px 8px;
+
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+
+  background-color: transparent;
+  border: none;
+  border-radius: var(--border-radius-controls);
+  cursor: pointer;
+
+  appearance: none;
+}
+
+.select:focus {
+  outline: none;
+}
+
+.select:focus-visible {
+  outline: var(--focus-outline);
+}
+
+.select:hover {
+  background-color: color-mix(in oklab, var(--color-primary) 6%, transparent);
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+
+  font-size: var(--font-size-small);
+}
+
+.setting:first-of-type {
+  text-align: right;
+
+  border-top: 1px solid var(--color-divider);
+}
+
+.setting > span:last-of-type {
+  width: 36px;
+}
+
+.download {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-divider);
+  border-bottom-right-radius: var(--border-radius-controls);
+  border-bottom-left-radius: var(--border-radius-controls);
+  cursor: pointer;
+
+  appearance: none;
+}
+
+.download:focus {
+  outline: none;
+}
+
+.download:focus-visible {
+  outline: var(--focus-outline);
+}
+
+.download:hover:not(:disabled) {
+  background-color: color-mix(in oklab, var(--color-primary) 6%, transparent);
+}
+
+.download:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

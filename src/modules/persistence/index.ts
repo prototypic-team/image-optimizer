@@ -1,7 +1,6 @@
 import {
   idbClearAppData,
   idbDeleteBlob,
-  idbGetAllBlobKeys,
   idbGetBlob,
   idbGetMeta,
   idbHasBlob,
@@ -9,35 +8,9 @@ import {
   idbPutMeta,
 } from "~/modules/persistence/idb";
 
+import { TPersistedAppMeta } from "Types";
+
 export const PERSISTENCE_VERSION = 1 as const;
-
-export type TPersistedFormatMeta = {
-  size: number;
-  mimeType: string;
-};
-
-export type TPersistedImageMeta = {
-  id: string;
-  name: string;
-  fileName: string;
-  extension: string;
-  status: "pending" | "processing" | "done" | "error";
-  weight: {
-    original: number;
-    optimized: number | undefined;
-  };
-  /** Keyed by configKey (e.g. "avif_q32"). Sizes + mime stored in meta, blobs in IDB under "${id}:${configKey}". */
-  optimized?: Record<string, TPersistedFormatMeta>;
-  error?: string;
-  viewport?: { scale: number; tx: number; ty: number };
-};
-
-export type TPersistedAppMeta = {
-  version: typeof PERSISTENCE_VERSION;
-  imageOrder: string[];
-  selectedImageId: string | undefined;
-  images: Record<string, TPersistedImageMeta>;
-};
 
 const fileArrayBufferCache = new WeakMap<File, Promise<ArrayBuffer>>();
 const getFileBuf = (file: File): Promise<ArrayBuffer> => {
@@ -59,21 +32,18 @@ const isPersistedAppMeta = (value: unknown): value is TPersistedAppMeta => {
   );
 };
 
-export const loadMeta =
-  async (): Promise<TPersistedAppMeta | null> => {
-    try {
-      const raw = await idbGetMeta();
-      if (!raw || !isPersistedAppMeta(raw)) return null;
-      return raw;
-    } catch (e) {
-      console.warn("Failed to load persisted meta:", e);
-      return null;
-    }
-  };
+export const loadMeta = async (): Promise<TPersistedAppMeta | null> => {
+  try {
+    const raw = await idbGetMeta();
+    if (!raw || !isPersistedAppMeta(raw)) return null;
+    return raw;
+  } catch (e) {
+    console.warn("Failed to load persisted meta:", e);
+    return null;
+  }
+};
 
-export const loadBlob = async (
-  id: string
-): Promise<ArrayBuffer | null> => {
+export const loadBlob = async (id: string): Promise<ArrayBuffer | null> => {
   try {
     const buf = await idbGetBlob(id);
     if (!buf) {
@@ -104,7 +74,7 @@ export const saveMeta = (meta: TPersistedAppMeta): void => {
     .catch(() => {
       // keep chain alive
     })
-    .then( () => idbPutMeta(meta))
+    .then(() => idbPutMeta(meta))
     .catch((e) => {
       console.error("Failed to persist meta:", e);
     });

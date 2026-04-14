@@ -1,6 +1,7 @@
 import { createStore, produce, unwrap } from "solid-js/store";
 
-import { DEFAULT_CONFIGS, optimizeInWorker, prioritizeTask } from "~/modules/optimizer";
+import { optimizeInWorker, prioritizeTask } from "~/modules/formats";
+import { configKey } from "~/modules/formats/utils";
 import {
   clearAppData,
   loadBlob,
@@ -9,11 +10,24 @@ import {
   removeFiles,
   saveFiles,
   saveMeta,
-  type TPersistedAppMeta,
-  type TPersistedImageMeta,
-} from "~/modules/persistence/persistence";
+} from "~/modules/persistence";
 
-import type { TFormatResult, TImage, TImagesState, TViewport } from "./types.d";
+import type {
+  TFormat,
+  TFormatResult,
+  TImage,
+  TImagesState,
+  TPersistedAppMeta,
+  TPersistedImageMeta,
+  TViewport,
+} from "Types";
+
+export const DEFAULT_FORMATS: TFormat[] = [
+  { format: "original" },
+  { format: "jpeg", quality: 75 },
+  { format: "webp", quality: 75 },
+  { format: "avif", quality: 60 },
+];
 
 const createImageFromFile = (file: File): TImage => ({
   id: crypto.randomUUID(),
@@ -26,6 +40,9 @@ const createImageFromFile = (file: File): TImage => ({
   },
   file,
   status: "pending",
+  formats: [...DEFAULT_FORMATS],
+  optimized: {},
+  viewport: { scale: 1, tx: 0, ty: 0 },
 });
 
 const mimeFromFileName = (fileName: string): string => {
@@ -42,9 +59,8 @@ const makeTImage = (
   buf: ArrayBuffer,
   optimizedBufs?: Record<string, ArrayBuffer>
 ): TImage => {
-  let optimized: Record<string, TFormatResult> | undefined;
+  const optimized: Record<string, TFormatResult> = {};
   if (m.optimized && optimizedBufs) {
-    optimized = {};
     for (const [cfgKey, meta] of Object.entries(m.optimized)) {
       const oBuf = optimizedBufs[cfgKey];
       if (!oBuf) continue;
@@ -67,6 +83,7 @@ const makeTImage = (
     optimized,
     error: m.error,
     viewport: m.viewport,
+    formats: m.formats ?? DEFAULT_FORMATS,
   };
 };
 
@@ -103,6 +120,7 @@ const buildAppMeta = (): TPersistedAppMeta => {
         ),
       error: img.error,
       viewport: img.viewport,
+      formats: img.formats,
     };
   }
 
@@ -152,18 +170,22 @@ export const addImages = (files: File[]) => {
   saveFiles(newFiles);
 };
 
-const processImage = async (imageId: string) => {
-  const image = store.images[imageId];
-  if (!image || image.status !== "pending") return;
+const encodeInFlight = new Set<string>();
 
-  setStore("images", imageId, "status", "processing");
+async function ensureEncoded(imageId: string, cfg: TFormat) {
+  const key = configKey(cfg);
+  const lock = `${imageId}:${key}`;
+  const image = store.images[imageId];
+  if (!image?.file || image.optimized?.[key]) return;
+  if (encodeInFlight.has(lock)) return;
+  encodeInFlight.add(lock);
 
   const files: Record<string, Blob> = {};
   try {
     await optimizeInWorker(
-      imageId,
+      `${imageId}:enc:${key}`,
       image.file,
-      DEFAULT_CONFIGS,
+      [cfg],
       (cfgKey, result) => {
         setStore(
           produce((prev) => {
@@ -176,12 +198,51 @@ const processImage = async (imageId: string) => {
               result.size
             );
             img.weight.optimized = smallest;
-            img.status = "done";
+            if (img.status !== "error") img.status = "done";
           })
         );
         files[`${imageId}:${cfgKey}`] = result.blob;
       }
     );
+    saveMeta(buildAppMeta());
+    saveFiles(files);
+  } finally {
+    encodeInFlight.delete(lock);
+  }
+}
+
+const processImage = async (imageId: string) => {
+  const image = store.images[imageId];
+  if (!image || image.status !== "pending") return;
+
+  setStore("images", imageId, "status", "processing");
+
+  const formats = unwrap(image.formats);
+  if (formats.length === 0) {
+    setStore("images", imageId, "status", "done");
+    saveMeta(buildAppMeta());
+    return;
+  }
+
+  const files: Record<string, Blob> = {};
+  try {
+    await optimizeInWorker(imageId, image.file, formats, (fKey, result) => {
+      setStore(
+        produce((prev) => {
+          const img = prev.images[imageId];
+          if (!img) return;
+          if (!img.optimized) img.optimized = {};
+          img.optimized[fKey] = result;
+          const smallest = Math.min(
+            img.weight.optimized ?? Infinity,
+            result.size
+          );
+          img.weight.optimized = smallest;
+          img.status = "done";
+        })
+      );
+      files[`${imageId}:${fKey}`] = result.blob;
+    });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setStore(
@@ -196,6 +257,25 @@ const processImage = async (imageId: string) => {
   }
   saveMeta(buildAppMeta());
   saveFiles(files);
+};
+
+export const setFormatSettings = (
+  imageId: string,
+  index: number,
+  format: TFormat
+) => {
+  setStore(
+    produce((prev) => {
+      const img = prev.images[imageId];
+      if (!img) return;
+      img.formats[index] = format;
+    })
+  );
+  saveMeta(buildAppMeta());
+
+  const img = store.images[imageId];
+  if (!img || img.status === "pending" || img.status === "processing") return;
+  if (format.format !== "original") ensureEncoded(imageId, format);
 };
 
 export const setViewport = (imageId: string, viewport: TViewport) => {
