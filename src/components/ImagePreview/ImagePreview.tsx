@@ -207,55 +207,62 @@ export const ImagePreview: Component = () => {
     return viewportRef;
   });
 
-  const previews = createMemo(() => {
-    const img = selectedImage();
-    if (!img) return null;
+  const previews = createMemo(
+    (prev: Record<string, THudPreviewRow> | undefined) => {
+      const img = selectedImage();
+      if (!img) return undefined;
 
-    const origUrl = URL.createObjectURL(img.file);
-    const result: THudPreviewRow[] = [];
-    const urlsToRevoke = new Set<string>();
+      const origUrl = URL.createObjectURL(img.file);
+      const result: Record<string, THudPreviewRow> = {};
+      const urlsToRevoke = new Set<string>();
 
-    for (const format of img.formats) {
-      if (format.format === "original") {
-        result.push({
-          imageId: img.id,
-          url: origUrl,
-          size: img.file.size,
-          placeholder: false,
-          format,
-        });
-        urlsToRevoke.add(origUrl);
-      } else {
-        const fKey = configKey(format);
-        const r = img.optimized?.[fKey];
-        if (r) {
-          const u = URL.createObjectURL(r.blob);
-          urlsToRevoke.add(u);
-          result.push({
-            imageId: img.id,
-            url: u,
-            size: r.size,
-            placeholder: false,
-            format,
-          });
-        } else {
-          result.push({
+      for (const format of img.formats) {
+        const key = configKey(format);
+        if (prev?.[key] && !prev[key].placeholder) {
+          result[key] = prev[key];
+          continue;
+        }
+
+        if (format.format === "original") {
+          result[key] = {
             imageId: img.id,
             url: origUrl,
-            size: 0,
-            placeholder: true,
+            size: img.file.size,
+            placeholder: false,
             format,
-          });
+          };
+          urlsToRevoke.add(origUrl);
+        } else {
+          const r = img.optimized?.[key];
+          if (r) {
+            const u = URL.createObjectURL(r.blob);
+            urlsToRevoke.add(u);
+            result[key] = {
+              imageId: img.id,
+              url: u,
+              size: r.size,
+              placeholder: false,
+              format,
+            };
+          } else {
+            result[key] = {
+              imageId: img.id,
+              url: origUrl,
+              size: 0,
+              placeholder: true,
+              format,
+            };
+          }
         }
       }
+
+      onCleanup(() => {
+        for (const u of urlsToRevoke) URL.revokeObjectURL(u);
+      });
+
+      return result;
     }
-
-    onCleanup(() => {
-      for (const u of urlsToRevoke) URL.revokeObjectURL(u);
-    });
-
-    return result;
-  });
+  );
 
   const onFormatChange = debounce(setFormatSettings, {
     threshold: 300,
@@ -291,7 +298,7 @@ export const ImagePreview: Component = () => {
             class={styles.viewport}
             classList={{ [styles.panning]: dragging() }}
           >
-            <For each={previews()}>
+            <For each={Object.values(previews() ?? {})}>
               {(preview) => (
                 <div class={styles.preview}>
                   <img
@@ -307,7 +314,7 @@ export const ImagePreview: Component = () => {
             <div class={styles.dividerH} />
             <div class={styles.dividerV} />
           </div>
-          <For each={previews()}>
+          <For each={Object.values(previews() ?? {})}>
             {(preview, index) => (
               <Hud
                 class={cn(

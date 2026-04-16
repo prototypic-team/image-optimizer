@@ -34,22 +34,29 @@ declare module "Types" {
     size: number;
   };
 
-  export type TWorkerRequest = {
-    type: "optimize";
-    taskId: string;
-    file: File;
-    formats: TFormat[];
-  };
+  export type TWorkerRequest =
+    | {
+        type: "optimize";
+        taskId: string;
+        imageId: string;
+        format: TFormat;
+      }
+    | { type: "evict"; imageId: string }
+    | { type: "file"; imageId: string; file: File };
 
   export type TWorkerResponse =
     | {
         type: "result";
         taskId: string;
-        configKey: string;
         buffer: ArrayBuffer;
         size: number;
         mimeType: string;
       }
     | { type: "complete"; taskId: string }
-    | { type: "error"; taskId: string; error: string };
+    | { type: "needsSource"; taskId: string }
+    | {
+        type: "error";
+        taskId: string;
+        error: string;
+      };
 }

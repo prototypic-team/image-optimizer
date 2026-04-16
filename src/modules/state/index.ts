@@ -1,6 +1,10 @@
 import { createStore, produce, unwrap } from "solid-js/store";
 
-import { optimizeInWorker, prioritizeTask } from "~/modules/formats";
+import {
+  evictWorkerCache,
+  optimizeInWorker,
+  prioritizeTask,
+} from "~/modules/formats";
 import { configKey } from "~/modules/formats/utils";
 import {
   clearAppData,
@@ -170,47 +174,6 @@ export const addImages = (files: File[]) => {
   saveFiles(newFiles);
 };
 
-const encodeInFlight = new Set<string>();
-
-async function ensureEncoded(imageId: string, cfg: TFormat) {
-  const key = configKey(cfg);
-  const lock = `${imageId}:${key}`;
-  const image = store.images[imageId];
-  if (!image?.file || image.optimized?.[key]) return;
-  if (encodeInFlight.has(lock)) return;
-  encodeInFlight.add(lock);
-
-  const files: Record<string, Blob> = {};
-  try {
-    await optimizeInWorker(
-      `${imageId}:enc:${key}`,
-      image.file,
-      [cfg],
-      (cfgKey, result) => {
-        setStore(
-          produce((prev) => {
-            const img = prev.images[imageId];
-            if (!img) return;
-            if (!img.optimized) img.optimized = {};
-            img.optimized[cfgKey] = result;
-            const smallest = Math.min(
-              img.weight.optimized ?? Infinity,
-              result.size
-            );
-            img.weight.optimized = smallest;
-            if (img.status !== "error") img.status = "done";
-          })
-        );
-        files[`${imageId}:${cfgKey}`] = result.blob;
-      }
-    );
-    saveMeta(buildAppMeta());
-    saveFiles(files);
-  } finally {
-    encodeInFlight.delete(lock);
-  }
-}
-
 const processImage = async (imageId: string) => {
   const image = store.images[imageId];
   if (!image || image.status !== "pending") return;
@@ -226,23 +189,15 @@ const processImage = async (imageId: string) => {
 
   const files: Record<string, Blob> = {};
   try {
-    await optimizeInWorker(imageId, image.file, formats, (fKey, result) => {
-      setStore(
-        produce((prev) => {
-          const img = prev.images[imageId];
-          if (!img) return;
-          if (!img.optimized) img.optimized = {};
-          img.optimized[fKey] = result;
-          const smallest = Math.min(
-            img.weight.optimized ?? Infinity,
-            result.size
-          );
-          img.weight.optimized = smallest;
-          img.status = "done";
-        })
-      );
-      files[`${imageId}:${fKey}`] = result.blob;
-    });
+    for (const format of formats) {
+      const result = await optimizeInWorker({
+        imageId,
+        format,
+        file: image.file,
+      });
+
+      files[`${imageId}:${configKey(format)}`] = result.blob;
+    }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setStore(
@@ -259,7 +214,7 @@ const processImage = async (imageId: string) => {
   saveFiles(files);
 };
 
-export const setFormatSettings = (
+export const setFormatSettings = async (
   imageId: string,
   index: number,
   format: TFormat
@@ -275,7 +230,25 @@ export const setFormatSettings = (
 
   const img = store.images[imageId];
   if (!img || img.status === "pending" || img.status === "processing") return;
-  if (format.format !== "original") ensureEncoded(imageId, format);
+  if (format.format !== "original") {
+    try {
+      const result = await optimizeInWorker({
+        imageId,
+        format,
+        file: img.file,
+      });
+      setStore("images", imageId, "optimized", {
+        [configKey(format)]: result,
+      });
+      saveFiles({
+        [`${imageId}:${configKey(format)}`]: result.blob,
+      });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      setStore("images", imageId, "error", error);
+    }
+  }
+  saveMeta(buildAppMeta());
 };
 
 export const setViewport = (imageId: string, viewport: TViewport) => {
@@ -296,10 +269,13 @@ export const removeImage = (imageId: string) => {
   );
   saveMeta(buildAppMeta());
   removeFiles([imageId]);
+  evictWorkerCache(imageId);
 };
 
 export const clearAll = () => {
+  const ids = [...store.imageOrder];
   setStore({ images: {}, imageOrder: [], selectedImageId: undefined });
+  for (const id of ids) evictWorkerCache(id);
   clearAppData();
 };
 

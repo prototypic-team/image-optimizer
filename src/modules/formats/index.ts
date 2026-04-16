@@ -1,3 +1,5 @@
+import { configKey } from "./utils";
+
 import type {
   TFormat,
   TFormatResult,
@@ -7,7 +9,10 @@ import type {
 
 let worker: Worker | undefined;
 
-function getWorker(): Worker {
+function getWorker(): MergeWithPriority<
+  { postMessage: (message: TWorkerRequest) => void },
+  Worker
+> {
   if (!worker) {
     worker = new Worker(new URL("./worker.ts", import.meta.url), {
       type: "module",
@@ -16,25 +21,34 @@ function getWorker(): Worker {
   return worker;
 }
 
-type PendingTask = {
-  onResult: (configKey: string, result: TFormatResult) => void;
-  resolve: () => void;
-  reject: (err: Error) => void;
-};
-
-const pending = new Map<string, PendingTask>();
-
-type QueuedTask = {
+type Task = {
   taskId: string;
-  file: File;
-  formats: TFormat[];
-  onResult: (configKey: string, result: TFormatResult) => void;
-  resolve: () => void;
+  resolve: (result: TFormatResult) => void;
   reject: (err: Error) => void;
+  imageId: string;
+  format: TFormat;
+  file: File;
+  fileSent: boolean;
 };
 
-const queue: QueuedTask[] = [];
-let activeTaskId: string | null = null;
+const queue: Task[] = [];
+let activeTask: Task | undefined = undefined;
+
+export function evictWorkerCache(imageId: string) {
+  getWorker().postMessage({ type: "evict", imageId } satisfies TWorkerRequest);
+
+  const imageIndex = queue.findIndex((t) => t.imageId === imageId);
+  if (imageIndex !== -1) {
+    const [t] = queue.splice(imageIndex, 1);
+    t.reject(new Error("Image removed"));
+  }
+
+  if (activeTask && activeTask.imageId === imageId) {
+    activeTask.reject(new Error("Image removed"));
+    activeTask = undefined;
+    pumpQueue();
+  }
+}
 
 function ensureListener() {
   const w = getWorker();
@@ -43,25 +57,43 @@ function ensureListener() {
 
   w.onmessage = (e: MessageEvent<TWorkerResponse>) => {
     const msg = e.data;
-    const task = pending.get(msg.taskId);
-    if (!task) return;
+    if (!activeTask) return;
 
     switch (msg.type) {
       case "result": {
+        if (activeTask.taskId !== msg.taskId) return;
         const blob = new Blob([msg.buffer], { type: msg.mimeType });
-        task.onResult(msg.configKey, { blob, size: msg.size });
-        break;
-      }
-      case "complete":
-        pending.delete(msg.taskId);
-        if (activeTaskId === msg.taskId) activeTaskId = null;
-        task.resolve();
+        activeTask.resolve({ blob, size: msg.size });
+        activeTask = undefined;
         pumpQueue();
         break;
+      }
+
+      case "needsSource":
+        if (activeTask.fileSent) {
+          activeTask.reject(new Error("Optimization failed"));
+          activeTask = undefined;
+          pumpQueue();
+          break;
+        }
+
+        getWorker().postMessage({
+          type: "file",
+          imageId: activeTask.imageId,
+          file: activeTask.file,
+        });
+        activeTask.fileSent = true;
+        getWorker().postMessage({
+          type: "optimize",
+          taskId: msg.taskId,
+          imageId: activeTask.imageId,
+          format: activeTask.format,
+        });
+        break;
+
       case "error":
-        pending.delete(msg.taskId);
-        if (activeTaskId === msg.taskId) activeTaskId = null;
-        task.reject(new Error(msg.error));
+        activeTask.reject(new Error(msg.error));
+        activeTask = undefined;
         pumpQueue();
         break;
     }
@@ -69,42 +101,48 @@ function ensureListener() {
 }
 
 function pumpQueue() {
-  if (activeTaskId != null) return;
+  if (activeTask) return;
   const next = queue.shift();
   if (!next) return;
 
-  activeTaskId = next.taskId;
-  pending.set(next.taskId, {
-    onResult: next.onResult,
-    resolve: next.resolve,
-    reject: next.reject,
-  });
-
-  const msg: TWorkerRequest = {
+  activeTask = next;
+  getWorker().postMessage({
     type: "optimize",
     taskId: next.taskId,
-    file: next.file,
-    formats: next.formats,
-  };
-  getWorker().postMessage(msg);
+    imageId: next.imageId,
+    format: next.format,
+  });
 }
 
-export function optimizeInWorker(
-  taskId: string,
-  file: File,
-  formats: TFormat[],
-  onResult: (configKey: string, result: TFormatResult) => void
-): Promise<void> {
+export function optimizeInWorker({
+  imageId,
+  format,
+  file,
+}: {
+  imageId: string;
+  format: TFormat;
+  file: File;
+}): Promise<TFormatResult> {
   ensureListener();
 
-  return new Promise<void>((resolve, reject) => {
-    queue.push({ taskId, file, formats, onResult, resolve, reject });
+  const taskId = `${imageId}:${configKey(format)}`;
+
+  return new Promise<TFormatResult>((resolve, reject) => {
+    queue.push({
+      taskId,
+      imageId,
+      format,
+      file,
+      resolve,
+      reject,
+      fileSent: false,
+    });
     pumpQueue();
   });
 }
 
 export function prioritizeTask(taskId: string) {
-  if (activeTaskId === taskId) return;
+  if (activeTask?.taskId === taskId) return;
   const idx = queue.findIndex((t) => t.taskId === taskId);
   if (idx <= 0) return;
   const [t] = queue.splice(idx, 1);

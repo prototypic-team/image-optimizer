@@ -3,8 +3,6 @@ import { encode as encodeJpeg } from "@jsquash/jpeg";
 import { encode as encodePng } from "@jsquash/png";
 import { encode as encodeWebp } from "@jsquash/webp";
 
-import { configKey } from "./utils";
-
 import {
   TAvifFormat,
   TEncodableFormat,
@@ -21,6 +19,36 @@ const MIME_TYPES: Record<TEncodableFormat, string> = {
   png: "image/png",
   webp: "image/webp",
 };
+
+const filesByImageId = new Map<string, File>();
+const decodeByImageId = new Map<
+  string,
+  Map<number | undefined, Promise<ImageData>>
+>();
+
+const getDecoded = (imageId: string, maxDimension?: number) => {
+  const file = filesByImageId.get(imageId);
+  if (!file) throw new Error(`No file for image ${imageId}`);
+
+  let byMaxDim = decodeByImageId.get(imageId);
+  if (!byMaxDim) {
+    byMaxDim = new Map();
+    decodeByImageId.set(imageId, byMaxDim);
+  }
+
+  let decoded = byMaxDim.get(maxDimension);
+  if (!decoded) {
+    decoded = fileToImageData(file, maxDimension);
+    byMaxDim.set(maxDimension, decoded);
+  }
+
+  return decoded;
+};
+
+function evictCache(imageId: string) {
+  filesByImageId.delete(imageId);
+  decodeByImageId.delete(imageId);
+}
 
 async function fileToImageData(
   file: File,
@@ -66,44 +94,51 @@ async function encodeFormat(
 }
 
 self.onmessage = async (e: MessageEvent<TWorkerRequest>) => {
-  const { taskId, file, formats } = e.data;
+  switch (e.data.type) {
+    case "evict":
+      evictCache(e.data.imageId);
+      return;
 
-  try {
-    const decodedByMaxDim = new Map<number | undefined, Promise<ImageData>>();
+    case "file":
+      filesByImageId.set(e.data.imageId, e.data.file);
+      return;
 
-    const getDecoded = (maxDimension?: number) => {
-      if (!decodedByMaxDim.has(maxDimension)) {
-        decodedByMaxDim.set(maxDimension, fileToImageData(file, maxDimension));
+    case "optimize": {
+      try {
+        const { taskId, imageId, format } = e.data;
+
+        const file = filesByImageId.get(imageId);
+        if (!file) {
+          self.postMessage({ type: "needsSource", taskId });
+          return;
+        }
+
+        if (format.format === "original") {
+          throw new Error("Original format not supported");
+        }
+
+        const imageData = await getDecoded(imageId, format.maxDimension);
+        const buffer = await encodeFormat(imageData, format);
+        const mimeType = MIME_TYPES[format.format];
+
+        const msg: TWorkerResponse = {
+          type: "result",
+          taskId,
+          buffer,
+          size: buffer.byteLength,
+          mimeType,
+        };
+        self.postMessage(msg, [buffer]);
+
+        return;
+      } catch (err) {
+        self.postMessage({
+          type: "error",
+          taskId: e.data.taskId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
       }
-      return decodedByMaxDim.get(maxDimension)!;
-    };
-
-    for (const cfg of formats) {
-      if (cfg.format === "original") continue;
-      const imageData = await getDecoded(cfg.maxDimension);
-      const buffer = await encodeFormat(imageData, cfg);
-      const key = configKey(cfg);
-      const mimeType = MIME_TYPES[cfg.format];
-
-      const msg: TWorkerResponse = {
-        type: "result",
-        taskId,
-        configKey: key,
-        buffer,
-        size: buffer.byteLength,
-        mimeType,
-      };
-      self.postMessage(msg, [buffer]);
     }
-
-    const done: TWorkerResponse = { type: "complete", taskId };
-    self.postMessage(done);
-  } catch (err) {
-    const error: TWorkerResponse = {
-      type: "error",
-      taskId,
-      error: err instanceof Error ? err.message : String(err),
-    };
-    self.postMessage(error);
   }
 };
