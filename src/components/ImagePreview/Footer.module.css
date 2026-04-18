@@ -6,25 +6,20 @@
   padding: 0;
 }
 
-.footerActions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-left: auto;
+.copySettings {
+  margin-right: auto;
 }
 
-.exportImage::before {
-  content: attr(data-label);
+.copySettings::before {
+  content: "Copy Settings to All Images";
+}
+
+.exportAll::before {
+  content: "Export All";
 }
 
 @media (width <= 740px) {
-  .exportImage::before {
-    content: "Export Image";
-  }
-}
-
-@media (width <= 365px) {
-  .exportImage {
-    display: none;
+  .copySettings::before {
+    content: "Copy Settings";
   }
 }

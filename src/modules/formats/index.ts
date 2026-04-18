@@ -34,17 +34,21 @@ type Task = {
 const queue: Task[] = [];
 let activeTask: Task | undefined = undefined;
 
-export function evictWorkerCache(imageId: string) {
+export function rejectImageTasks(
+  imageId: string,
+  err: Error = new Error("Image removed")
+) {
   getWorker().postMessage({ type: "evict", imageId } satisfies TWorkerRequest);
 
-  const imageIndex = queue.findIndex((t) => t.imageId === imageId);
-  if (imageIndex !== -1) {
-    const [t] = queue.splice(imageIndex, 1);
-    t.reject(new Error("Image removed"));
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (queue[i]!.imageId === imageId) {
+      const [t] = queue.splice(i, 1);
+      t!.reject(err);
+    }
   }
 
-  if (activeTask && activeTask.imageId === imageId) {
-    activeTask.reject(new Error("Image removed"));
+  if (activeTask?.imageId === imageId) {
+    activeTask.reject(err);
     activeTask = undefined;
     pumpQueue();
   }

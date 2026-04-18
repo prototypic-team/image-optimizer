@@ -218,7 +218,11 @@ export const ImagePreview: Component = () => {
 
       for (const format of img.formats) {
         const key = configKey(format);
-        if (prev?.[key] && !prev[key].placeholder) {
+        if (
+          prev?.[key] &&
+          !prev[key].placeholder &&
+          prev[key].imageId === img.id
+        ) {
           result[key] = prev[key];
           continue;
         }

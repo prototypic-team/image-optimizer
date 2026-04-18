@@ -258,4 +258,8 @@
     border-radius: var(--border-radius-controls);
     transform: none;
   }
+
+  .action span:last-of-type {
+    display: none;
+  }
 }

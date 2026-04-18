@@ -1,9 +1,9 @@
 import { createStore, produce, unwrap } from "solid-js/store";
 
 import {
-  evictWorkerCache,
   optimizeInWorker,
   prioritizeTask,
+  rejectImageTasks,
 } from "~/modules/formats";
 import { configKey } from "~/modules/formats/utils";
 import {
@@ -15,6 +15,8 @@ import {
   saveFiles,
   saveMeta,
 } from "~/modules/persistence";
+
+import { CancelledError } from "./errors";
 
 import type {
   TFormat,
@@ -199,6 +201,7 @@ const processImage = async (imageId: string) => {
       files[`${imageId}:${configKey(format)}`] = result.blob;
     }
   } catch (err) {
+    if (err instanceof CancelledError) return;
     const error = err instanceof Error ? err.message : String(err);
     setStore(
       produce((prev) => {
@@ -256,6 +259,94 @@ export const setViewport = (imageId: string, viewport: TViewport) => {
   saveMeta(buildAppMeta());
 };
 
+/**
+ * Copies format settings from the selected image to every other image, then
+ * encodes any formats that are missing. Skips encoding when an image already
+ * has an optimized blob for that config key.
+ */
+export const copyFormats = async () => {
+  const selectedId = store.selectedImageId;
+  if (!selectedId) return;
+
+  const source = store.images[selectedId];
+  if (!source) return;
+
+  const templateFormats = structuredClone(unwrap(source.formats));
+  const neededKeys = new Set(templateFormats.map(configKey));
+
+  const targetIds = store.imageOrder.filter((id) => id !== selectedId);
+  if (targetIds.length === 0) return;
+
+  const optimizeTasks: Promise<void>[] = [];
+
+  for (const imageId of targetIds) {
+    const img = store.images[imageId];
+    if (!img) continue;
+
+    const staleKeys = Object.keys(unwrap(img.optimized)).filter(
+      (k) => !neededKeys.has(k)
+    );
+
+    setStore(
+      produce((prev) => {
+        const im = prev.images[imageId];
+        if (!im) return;
+        im.formats = structuredClone(templateFormats);
+        for (const k of staleKeys) {
+          delete im.optimized[k];
+        }
+      })
+    );
+
+    if (staleKeys.length > 0) {
+      removeFiles(staleKeys.map((k) => `${imageId}:${k}`));
+    }
+
+    if (img.status === "pending") continue;
+
+    if (img.status === "processing") {
+      rejectImageTasks(imageId, new CancelledError());
+      setStore("images", imageId, "status", "pending");
+      processImage(imageId);
+      continue;
+    }
+
+    for (const format of templateFormats) {
+      if (format.format === "original") continue;
+
+      const key = configKey(format);
+      if (store.images[imageId]?.optimized[key]) continue;
+
+      optimizeTasks.push(
+        (async () => {
+          const file = store.images[imageId]?.file;
+          if (!file) return;
+
+          try {
+            const result = await optimizeInWorker({
+              imageId,
+              format,
+              file,
+            });
+            setStore("images", imageId, "optimized", {
+              [key]: result,
+            });
+            saveFiles({
+              [`${imageId}:${key}`]: result.blob,
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err.message : String(err);
+            setStore("images", imageId, "error", error);
+          }
+        })()
+      );
+    }
+  }
+
+  await Promise.all(optimizeTasks);
+  saveMeta(buildAppMeta());
+};
+
 export const removeImage = (imageId: string) => {
   setStore(
     produce((prev) => {
@@ -269,13 +360,13 @@ export const removeImage = (imageId: string) => {
   );
   saveMeta(buildAppMeta());
   removeFiles([imageId]);
-  evictWorkerCache(imageId);
+  rejectImageTasks(imageId, new CancelledError());
 };
 
 export const clearAll = () => {
   const ids = [...store.imageOrder];
   setStore({ images: {}, imageOrder: [], selectedImageId: undefined });
-  for (const id of ids) evictWorkerCache(id);
+  for (const id of ids) rejectImageTasks(id, new CancelledError());
   clearAppData();
 };
 

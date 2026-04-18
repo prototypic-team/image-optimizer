@@ -6,7 +6,7 @@ export const configKey = ({ format, ...config }: TFormat): string => {
     .map(([key, value]) => `${key}=${value}`)
     .join("_");
 
-  return `${format}_${configString}`;
+  return `${format}${configString ? `_${configString}` : ""}`;
 };
 
 const formatKeys: Set<TEncodableFormat | "original"> = new Set([

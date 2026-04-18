@@ -1,12 +1,16 @@
-import { Component, createMemo, Show } from "solid-js";
+import { Component, createMemo, createSignal, Show } from "solid-js";
 
-import { store } from "~/modules/state";
+import { configKey } from "~/modules/formats/utils";
+import { copyFormats, store } from "~/modules/state";
 import { Button } from "~/pixel";
 import { downloadBlob } from "~/utils/files";
 
 import styles from "./Footer.module.css";
 
-import type { TFormatResult } from "Types";
+import type { TFormat, TFormatResult } from "Types";
+
+const formatsSignature = (formats: TFormat[]) =>
+  formats.map((f) => configKey(f)).join("\0");
 
 const extFromConfigKey = (key: string): string => {
   const base = key.includes("_q") ? key.slice(0, key.indexOf("_q")) : key;
@@ -34,9 +38,7 @@ const getSmallest = (
 };
 
 export const Footer: Component = () => {
-  const selectedImage = createMemo(() =>
-    store.selectedImageId ? store.images[store.selectedImageId] : undefined
-  );
+  const [copyingFormats, setCopyingFormats] = createSignal(false);
 
   const allDone = createMemo(
     () =>
@@ -44,12 +46,21 @@ export const Footer: Component = () => {
       store.imageOrder.every((id) => store.images[id]?.status === "done")
   );
 
-  const handleExport = () => {
-    const img = selectedImage();
-    if (!img?.optimized) return;
-    const best = getSmallest(img.file, img.extension, img.optimized);
-    downloadBlob(best.blob, `${img.name}.${best.ext}`);
-  };
+  const allImagesShareFormats = createMemo(() => {
+    const order = store.imageOrder;
+    if (order.length === 0) return true;
+    const first = store.images[order[0]];
+    if (!first) return true;
+    const sig = formatsSignature(first.formats);
+    return order.every((id) => {
+      const img = store.images[id];
+      return img && formatsSignature(img.formats) === sig;
+    });
+  });
+
+  const canCopyFormatsToOthers = createMemo(
+    () => store.imageOrder.length > 1 && allDone() && !allImagesShareFormats()
+  );
 
   const handleExportAll = () => {
     for (const id of store.imageOrder) {
@@ -60,26 +71,33 @@ export const Footer: Component = () => {
     }
   };
 
+  const handleCopyFormatsToOthers = async () => {
+    setCopyingFormats(true);
+    try {
+      await copyFormats();
+    } finally {
+      setCopyingFormats(false);
+    }
+  };
+
   return (
     <Show when={store.imageOrder.length > 0}>
       <footer class={styles.footer}>
-        <div class={styles.footerActions}>
-          <Show when={selectedImage()?.optimized}>
-            <Button
-              data-label={`Export ${selectedImage()?.name ?? ""}`}
-              class={styles.exportImage}
-              kind="secondary"
-              onClick={handleExport}
-            />
-          </Show>
+        <Show when={store.imageOrder.length > 1}>
           <Button
-            kind="primary"
-            disabled={!allDone()}
-            onClick={handleExportAll}
-          >
-            Export All
-          </Button>
-        </div>
+            kind="secondary"
+            class={styles.copySettings}
+            disabled={!canCopyFormatsToOthers()}
+            loading={copyingFormats()}
+            onClick={handleCopyFormatsToOthers}
+          />
+        </Show>
+        <Button
+          kind="primary"
+          class={styles.exportAll}
+          disabled={!allDone()}
+          onClick={handleExportAll}
+        />
       </footer>
     </Show>
   );

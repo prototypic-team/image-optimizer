@@ -70,7 +70,7 @@ export const ImageList: Component<Props> = (props) => {
           class={cn(styles.action, styles.addImages)}
           onClick={props.openFilePicker}
         >
-          <span>Add images</span>
+          <span>Add Images</span>
           <span>{modKey} + U</span>
         </button>
         <Show when={images().length > 0}>
