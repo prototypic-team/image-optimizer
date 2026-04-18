@@ -14,8 +14,25 @@
   content: "Copy Settings to All Images";
 }
 
-.exportAll::before {
-  content: "Export All";
+.exportGroup {
+  display: flex;
+  align-items: stretch;
+}
+
+.exportGroup > button:not(:last-child) {
+  border-right: 1px solid
+    color-mix(in oklab, var(--color-base) 30%, transparent);
+
+  border-end-end-radius: 0;
+  border-start-end-radius: 0;
+}
+
+.exportGroup > button:not(:first-child) {
+  border-left: 1px solid
+    color-mix(in oklab, var(--color-primary) 20%, transparent);
+
+  border-end-start-radius: 0;
+  border-start-start-radius: 0;
 }
 
 @media (width <= 740px) {
