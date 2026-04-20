@@ -1,6 +1,20 @@
+html {
+  height: unset;
+  min-height: 100dvh;
+  overflow: unset;
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: unset;
+  min-height: 100dvh;
+}
+
 main,
 header,
 footer {
+  width: 100%;
   max-width: 700px;
   margin: 0 auto;
   padding: 32px 20px;
@@ -41,6 +55,6 @@ footer {
   align-items: center;
   padding: 20px 16px 12px;
 
-  color: color-mix(in oklab, currentcolor 50%, transparent);
+  color: var(--color-secondary);
   font-size: var(--font-size-small);
 }

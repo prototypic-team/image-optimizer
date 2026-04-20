@@ -86,7 +86,7 @@ export const App: Component = () => {
           </div>
         </ImageDropZone>
         {isEmpty() && (
-          <footer>
+          <footer class={styles.footer}>
             <div>© 2026 Prototypic</div>
             <a href="/about.html" style="margin-left: auto">
               About

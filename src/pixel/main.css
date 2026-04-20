@@ -2,9 +2,6 @@
 @import "./common.css";
 
 html {
-  height: 100dvh;
-  overflow: hidden;
-
   background-color: var(--color-base);
 }
 
@@ -14,9 +11,7 @@ html:has(#clear-all:focus-visible) {
 }
 
 body {
-  height: 100dvh;
   margin: 0;
-  overflow: hidden;
 
   color: var(--color-primary);
   font-size: var(--font-size-basic);

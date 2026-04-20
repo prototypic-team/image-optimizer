@@ -1,0 +1,14 @@
+html {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html:has(#clear-all:hover),
+html:has(#clear-all:focus-visible) {
+  --color-base: var(--color-danger);
+}
+
+body {
+  height: 100dvh;
+  overflow: hidden;
+}

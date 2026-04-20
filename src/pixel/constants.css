@@ -25,13 +25,7 @@
   --portrait-width: 600px;
 
   /* Animations */
-  --transition-active: 0.07s ease-out;
   --transition-basic: 0.1s ease-out;
-
-  /* Elevation */
-  --z-index-menu: 1000;
-  --z-index-dialog: 999;
-  --z-index-focus: 10;
 
   /* Focus */
   --focus-outline-style: 3px solid;
