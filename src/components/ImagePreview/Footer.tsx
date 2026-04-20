@@ -138,7 +138,7 @@ export const Footer: Component = () => {
             disabled={!allDone()}
             onClick={handleExportAll}
           >
-            Export All
+            Download All
           </Button>
           <For each={formatButtons()}>
             {(btn) => (

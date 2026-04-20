@@ -7,6 +7,7 @@
   justify-content: center;
   padding: 6px 12px;
 
+  font-weight: var(--font-weight-medium);
   font-size: var(--font-size-basic);
   line-height: 1.2;
   letter-spacing: 0.02em;
@@ -20,8 +21,6 @@
     background-color var(--transition-active),
     border-color var(--transition-active),
     color var(--transition-active);
-
-  font-variation-settings: "wght" 560;
 }
 
 .inner {
@@ -77,7 +76,7 @@
 }
 
 .primary:hover:not(:disabled) {
-  background-color: color-mix(in oklab, var(--color-primary) 90%, transparent);
+  background-color: color-mix(in oklab, var(--color-primary) 80%, transparent);
 }
 
 .primary:active {
