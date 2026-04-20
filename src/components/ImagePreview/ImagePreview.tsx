@@ -4,6 +4,7 @@ import {
   createMemo,
   createSignal,
   For,
+  Index,
   onCleanup,
   Show,
 } from "solid-js";
@@ -207,66 +208,54 @@ export const ImagePreview: Component = () => {
     return viewportRef;
   });
 
-  const previews = createMemo(
-    (prev: Record<string, THudPreviewRow> | undefined) => {
-      const img = selectedImage();
-      if (!img) return undefined;
+  const previews = createMemo(() => {
+    const img = selectedImage();
+    if (!img) return undefined;
 
-      const origUrl = URL.createObjectURL(img.file);
-      const result: Record<string, THudPreviewRow> = {};
-      const urlsToRevoke = new Set<string>();
+    const origUrl = URL.createObjectURL(img.file);
+    const result: THudPreviewRow[] = [];
+    const urlsToRevoke = new Set<string>();
 
-      for (const format of img.formats) {
-        const key = configKey(format);
-        if (
-          prev?.[key] &&
-          !prev[key].placeholder &&
-          prev[key].imageId === img.id
-        ) {
-          result[key] = prev[key];
-          continue;
-        }
-
-        if (format.format === "original") {
-          result[key] = {
+    for (const format of img.formats) {
+      if (format.format === "original") {
+        result.push({
+          imageId: img.id,
+          url: origUrl,
+          size: img.file.size,
+          placeholder: false,
+          format,
+        });
+        urlsToRevoke.add(origUrl);
+      } else {
+        const r = img.optimized?.[configKey(format)];
+        if (r) {
+          const u = URL.createObjectURL(r.blob);
+          urlsToRevoke.add(u);
+          result.push({
             imageId: img.id,
-            url: origUrl,
-            size: img.file.size,
+            url: u,
+            size: r.size,
             placeholder: false,
             format,
-          };
-          urlsToRevoke.add(origUrl);
+          });
         } else {
-          const r = img.optimized?.[key];
-          if (r) {
-            const u = URL.createObjectURL(r.blob);
-            urlsToRevoke.add(u);
-            result[key] = {
-              imageId: img.id,
-              url: u,
-              size: r.size,
-              placeholder: false,
-              format,
-            };
-          } else {
-            result[key] = {
-              imageId: img.id,
-              url: origUrl,
-              size: 0,
-              placeholder: true,
-              format,
-            };
-          }
+          result.push({
+            imageId: img.id,
+            url: origUrl,
+            size: 0,
+            placeholder: true,
+            format,
+          });
         }
       }
-
-      onCleanup(() => {
-        for (const u of urlsToRevoke) URL.revokeObjectURL(u);
-      });
-
-      return result;
     }
-  );
+
+    onCleanup(() => {
+      for (const u of urlsToRevoke) URL.revokeObjectURL(u);
+    });
+
+    return result;
+  });
 
   const onFormatChange = debounce(setFormatSettings, {
     threshold: 300,
@@ -302,19 +291,22 @@ export const ImagePreview: Component = () => {
             class={styles.viewport}
             classList={{ [styles.panning]: dragging() }}
           >
-            <For each={Object.values(previews() ?? {})}>
+            <Index each={Object.values(previews() ?? {})}>
               {(preview) => (
                 <div class={styles.preview}>
                   <img
-                    src={preview.url}
+                    src={preview().url}
                     alt=""
-                    classList={{ [styles.placeholder]: !!preview.placeholder }}
+                    decoding="sync"
+                    classList={{
+                      [styles.placeholder]: !!preview().placeholder,
+                    }}
                     style={{ transform: imageTransform() }}
                     draggable={false}
                   />
                 </div>
               )}
-            </For>
+            </Index>
             <div class={styles.dividerH} />
             <div class={styles.dividerV} />
           </div>
