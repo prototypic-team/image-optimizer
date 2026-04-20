@@ -14,7 +14,6 @@ A browser-based image optimization tool. Drop or select images to compress them.
 - [jSquash](https://github.com/jamsinclair/jSquash) — Squoosh-derived WASM codecs for the browser:
   - `@jsquash/avif` (libavif)
   - `@jsquash/jpeg` (MozJPEG)
-  - `@jsquash/png` (Rust PNG crate)
   - `@jsquash/webp` (libwebp)
 
 ## Scripts

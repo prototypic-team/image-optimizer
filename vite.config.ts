@@ -9,9 +9,10 @@ export default defineConfig({
   // Pre-bundling breaks Emscripten’s `new URL("*.wasm", import.meta.url)` — fetch gets HTML (SPA fallback).
   optimizeDeps: {
     exclude: [
+      "@fe-daily/libimagequant-wasm",
       "@jsquash/avif",
       "@jsquash/jpeg",
-      "@jsquash/png",
+      "@jsquash/oxipng",
       "@jsquash/webp",
     ],
   },

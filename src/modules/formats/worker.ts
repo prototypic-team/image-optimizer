@@ -1,6 +1,8 @@
+import LibImageQuant from "@fe-daily/libimagequant-wasm";
+import * as libimagequantWasm from "@fe-daily/libimagequant-wasm/wasm/libimagequant_wasm.js";
 import { encode as encodeAvif } from "@jsquash/avif";
 import { encode as encodeJpeg } from "@jsquash/jpeg";
-import { encode as encodePng } from "@jsquash/png";
+import { optimise as optimisePng } from "@jsquash/oxipng";
 import { encode as encodeWebp } from "@jsquash/webp";
 
 import {
@@ -12,6 +14,8 @@ import {
   TWorkerRequest,
   TWorkerResponse,
 } from "Types";
+
+const quantizer = new LibImageQuant({ wasmModule: libimagequantWasm });
 
 const MIME_TYPES: Record<TEncodableFormat, string> = {
   avif: "image/avif",
@@ -85,8 +89,17 @@ async function encodeFormat(
       return encodeJpeg(imageData, config);
     case "webp":
       return encodeWebp(imageData, config);
-    case "png":
-      return encodePng(imageData);
+    case "png": {
+      const { pngBytes } = await quantizer.quantizeImageData(imageData, {
+        quality: { min: 0, target: config.quality },
+        speed: 3,
+        dithering: 1.0,
+      });
+      return optimisePng(pngBytes.buffer as ArrayBuffer, {
+        level: 3,
+        optimiseAlpha: true,
+      });
+    }
     default:
       // @ts-expect-error
       throw new Error(`Unknown format: ${config.format}`);

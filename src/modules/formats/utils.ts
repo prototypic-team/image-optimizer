@@ -25,10 +25,16 @@ export const guardFormatKey = (
   return maybeFormat as TEncodableFormat | "original";
 };
 
+const qualityFormats: Set<TEncodableFormat | "original"> = new Set([
+  "avif",
+  "jpeg",
+  "png",
+  "webp",
+]);
 export const supportsQualitySetting = (
   format: TEncodableFormat | "original"
 ) => {
-  return format === "avif" || format === "jpeg" || format === "webp";
+  return qualityFormats.has(format as TEncodableFormat | "original");
 };
 
 export const guardQualityFormat = (

@@ -13,6 +13,7 @@ declare module "Types" {
   };
   export type TPngFormat = {
     format: "png";
+    quality: number;
     maxDimension?: number;
   };
   export type TWebpFormat = {
