@@ -1,0 +1,135 @@
+.container {
+  position: relative;
+}
+
+.icon {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+
+  display: flex;
+  width: 14px;
+  height: 14px;
+
+  color: var(--color-secondary);
+
+  transform: translateY(-50%);
+
+  transition: color var(--transition-active);
+
+  pointer-events: none;
+}
+
+.container:has(:hover) .icon,
+.select:focus-visible ~ .icon {
+  color: var(--color-primary);
+}
+
+.select {
+  position: relative;
+
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 26px 6px 8px;
+
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+
+  background-color: transparent;
+  border: none;
+  border-radius: var(--border-radius-controls);
+  cursor: pointer;
+
+  appearance: none;
+}
+
+.select:focus {
+  outline: none;
+}
+
+.select:focus-visible {
+  outline: var(--focus-outline);
+}
+
+.select:hover {
+  background-color: color-mix(in oklab, var(--color-primary) 6%, transparent);
+}
+
+@supports (appearance: base-select) {
+  @starting-style {
+    :open::picker(select) {
+      opacity: 0;
+    }
+  }
+
+  .select,
+  ::picker(select) {
+    /* stylelint-disable-next-line declaration-property-value-no-unknown */
+    appearance: base-select;
+  }
+
+  .select::picker-icon {
+    display: none;
+  }
+
+  ::picker(select) {
+    width: calc(anchor-size(width) + 8px);
+    margin-top: 4px;
+    margin-bottom: 2px;
+
+    color: var(--color-primary);
+    font: inherit;
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-small);
+    text-transform: uppercase;
+
+    background-color: color-mix(in oklab, var(--color-base) 70%, transparent);
+    border: none;
+    border-radius: var(--border-radius-controls);
+    box-shadow:
+      0 1px 2px #00000020,
+      0 4px 30px -16px #00000030,
+      0 4px 20px -5px #0002;
+    opacity: 0;
+    backdrop-filter: blur(20px);
+
+    transition:
+      opacity var(--transition-basic),
+      display var(--transition-basic) allow-discrete,
+      overlay var(--transition-basic) allow-discrete;
+
+    margin-inline: -4px;
+  }
+
+  :open::picker(select) {
+    opacity: 1;
+  }
+
+  option {
+    padding: 1px 8px;
+
+    background-color: transparent;
+    cursor: pointer;
+  }
+
+  option:first-of-type {
+    padding-top: 4px;
+  }
+
+  option:last-of-type {
+    padding-bottom: 4px;
+  }
+
+  option:hover,
+  option:focus,
+  option:focus-visible {
+    background-color: var(--color-divider);
+    outline: none;
+  }
+
+  option::checkmark {
+    order: 0;
+  }
+}

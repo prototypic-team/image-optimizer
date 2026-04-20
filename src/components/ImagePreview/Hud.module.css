@@ -11,62 +11,9 @@
   backdrop-filter: blur(20px);
 }
 
-.selectContainer {
-  position: relative;
-}
-
-.selectIcon {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-
-  display: flex;
-  width: 14px;
-  height: 14px;
-
-  color: var(--color-secondary);
-
-  transform: translateY(-50%);
-
-  transition: color var(--transition-active);
-
-  pointer-events: none;
-}
-
-.selectContainer:has(:hover) .selectIcon,
-.select:focus-visible ~ .selectIcon {
-  color: var(--color-primary);
-}
-
-.select {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  padding: 6px 26px 6px 8px;
-
-  color: inherit;
-  font: inherit;
-  font-size: var(--font-size-small);
-  text-transform: uppercase;
-
-  background-color: transparent;
-  border: none;
-  border-radius: var(--border-radius-controls);
-  cursor: pointer;
-
-  appearance: none;
-}
-
-.select:focus {
-  outline: none;
-}
-
-.select:focus-visible {
-  outline: var(--focus-outline);
-}
-
-.select:hover {
-  background-color: color-mix(in oklab, var(--color-primary) 6%, transparent);
+.select select {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .settings {
@@ -125,6 +72,8 @@
 }
 
 .download:disabled {
+  color: color-mix(in oklab, var(--color-primary) 50%, transparent);
+
   cursor: not-allowed;
   opacity: 0.5;
 }

@@ -6,7 +6,7 @@ import {
   supportsQualitySetting,
 } from "~/modules/formats/utils";
 import { store } from "~/modules/state";
-import { cn, Icon, Range } from "~/pixel";
+import { cn, Icon, Range, Select } from "~/pixel";
 import { debounce } from "~/utils/debounce";
 import { formatFileSize } from "~/utils/format";
 
@@ -18,13 +18,14 @@ const FORMAT_OPTIONS: { value: TFormat["format"]; label: string }[] = [
   { value: "avif", label: "AVIF" },
   { value: "jpeg", label: "JPEG" },
   { value: "png", label: "PNG" },
-  { value: "webp", label: "WebP" },
+  { value: "webp", label: "WEBP" },
 ];
 
 export type HudProps = {
   settings: TFormat;
   size: number;
   class?: string;
+  isProcessing: boolean;
   downloadDisabled?: boolean;
   onDownload?: () => void;
   onChange: (newSettings: TFormat) => void;
@@ -38,10 +39,18 @@ export const Hud: Component<HudProps> = (props) => {
 
   const [format, setFormat] = createSignal(props.settings);
 
-  const onFormatKeyChange = (e: Event) => {
-    const newFormatKey = guardFormatKey(
-      (e.currentTarget as HTMLSelectElement).value
-    );
+  const formatOptions = createMemo(() => [
+    {
+      value: "original",
+      label: selectedImage()?.extension
+        ? `ORIGINAL (${selectedImage()?.extension.replace("jpg", "jpeg").toUpperCase()})`
+        : "ORIGINAL",
+    },
+    ...FORMAT_OPTIONS,
+  ]);
+
+  const onFormatKeyChange = (value: string) => {
+    const newFormatKey = guardFormatKey(value);
 
     if (!supportsQualitySetting(newFormatKey)) {
       setFormat({ format: "original" } as TOriginalFormat);
@@ -98,25 +107,13 @@ export const Hud: Component<HudProps> = (props) => {
       class={cn(styles.root, props.class)}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <div class={styles.selectContainer}>
-        <select
-          class={styles.select}
-          value={format().format}
-          onChange={onFormatKeyChange}
-          aria-label="Output format"
-        >
-          <option value="original">
-            Original
-            {selectedImage()?.extension
-              ? ` (${selectedImage()?.extension})`
-              : ""}
-          </option>
-          {FORMAT_OPTIONS.map((o) => (
-            <option value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <Icon.ChevronDown class={styles.selectIcon} />
-      </div>
+      <Select
+        class={styles.select}
+        options={formatOptions()}
+        value={format().format}
+        onChange={onFormatKeyChange}
+        aria-label="Output format"
+      />
       <div class={styles.settings}>
         <Show when={guardQualityFormat(format())}>
           {(f) => (
@@ -141,8 +138,10 @@ export const Hud: Component<HudProps> = (props) => {
         onClick={() => props.onDownload?.()}
         aria-label={downloadAriaLabel()}
       >
-        <Icon.Download />
-        <span>{formatFileSize(props.size)}</span>
+        <Show when={!props.isProcessing} fallback={"Processing..."}>
+          <Icon.Download />
+          <span>{formatFileSize(props.size)}</span>
+        </Show>
       </button>
     </section>
   );

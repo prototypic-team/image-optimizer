@@ -327,6 +327,7 @@ export const ImagePreview: Component = () => {
                 )}
                 settings={preview.format}
                 size={preview.size}
+                isProcessing={preview.placeholder}
                 downloadDisabled={preview.placeholder}
                 onDownload={() => downloadHudFormat(preview)}
                 onChange={(format) =>
