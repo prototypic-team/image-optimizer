@@ -1,4 +1,4 @@
-import { Component, createMemo, createSignal, For, Show } from "solid-js";
+import { Component, createMemo, For, Show } from "solid-js";
 
 import { configKey } from "~/modules/formats/utils";
 import { copyFormats, store } from "~/modules/state";
@@ -13,25 +13,72 @@ const formatsSignature = (formats: TFormat[]) =>
   formats.map((f) => configKey(f)).join("\0");
 
 export const Footer: Component = () => {
-  const [copyingFormats, setCopyingFormats] = createSignal(false);
-
-  const allDone = createMemo(
+  const allEnabled = createMemo(
     () =>
       store.imageOrder.length > 0 &&
-      store.imageOrder.every((id) => store.images[id]?.status === "done")
+      store.imageOrder.every((id) =>
+        store.images[id]?.formats.every(
+          (f) => f.config.format === "original" || f.result != null
+        )
+      )
   );
 
   const allImagesShareFormats = createMemo(() => {
-    const order = store.imageOrder;
-    if (order.length === 0) return true;
+    if (store.imageOrder.length === 0) return true;
 
-    const first = store.images[order[0]];
-    if (!first) return true;
+    const svgImageId = store.imageOrder.find(
+      (id) => store.images[id]?.extension.toLowerCase() === "svg"
+    );
+    const svgFormats = svgImageId
+      ? store.images[svgImageId]?.formats
+      : undefined;
 
-    const sig = formatsSignature(first.formats);
-    return order.every((id) => {
+    const nonSvgImageId = store.imageOrder.find(
+      (id) => store.images[id]?.extension.toLowerCase() !== "svg"
+    );
+    const nonSvgFormats = nonSvgImageId
+      ? store.images[nonSvgImageId]?.formats
+      : undefined;
+
+    if (svgFormats && nonSvgFormats) {
+      for (let i = 0; i < svgFormats.length; i++) {
+        const svgFormat = svgFormats[i];
+        const nonSvgFormat = nonSvgFormats[i];
+
+        if (!svgFormat || !nonSvgFormat) return false;
+
+        if (svgFormat.config.format === "svg") continue;
+        if (svgFormat.config.format !== nonSvgFormat.config.format)
+          return false;
+        if (
+          "quality" in svgFormat.config &&
+          "quality" in nonSvgFormat.config &&
+          svgFormat.config.quality !== nonSvgFormat.config.quality
+        )
+          return false;
+      }
+    }
+
+    const svgFormatsSignature = svgFormats
+      ? formatsSignature(svgFormats.map((f) => f.config))
+      : undefined;
+    const nonSvgFormatsSignature = nonSvgFormats
+      ? formatsSignature(nonSvgFormats.map((f) => f.config))
+      : undefined;
+
+    return store.imageOrder.every((id) => {
       const img = store.images[id];
-      return img && formatsSignature(img.formats) === sig;
+      if (img?.extension.toLowerCase() === "svg") {
+        return (
+          formatsSignature(img.formats.map((f) => f.config)) ===
+          svgFormatsSignature
+        );
+      } else {
+        return (
+          formatsSignature(img.formats.map((f) => f.config)) ===
+          nonSvgFormatsSignature
+        );
+      }
     });
   });
 
@@ -53,26 +100,37 @@ export const Footer: Component = () => {
       ext: string;
     }> = [];
 
-    for (const fmt of sourceImg.formats) {
-      if (fmt.format === "original") continue;
-      const key = configKey(fmt);
+    for (let i = 0; i < sourceImg.formats.length; i++) {
+      const fmt = sourceImg.formats[i];
+      if (fmt.config.format === "original") continue;
+      const key = configKey(fmt.config);
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         buttons.push({
-          format: fmt,
+          format: fmt.config,
           key,
           label: [
-            fmt.format.toUpperCase(),
-            "quality" in fmt ? `${fmt.quality}%` : undefined,
+            fmt.config.format.toUpperCase(),
+            "quality" in fmt.config ? `${fmt.config.quality}%` : undefined,
+            "precision" in fmt.config ? `${fmt.config.precision}dp` : undefined,
           ]
             .filter(Boolean)
             .join(" "),
-          ext: fmt.format,
-          allConfigured: store.imageOrder.every((id) =>
-            store.images[id]?.formats.some((f) => configKey(f) === key)
-          ),
+          ext: fmt.config.format,
+          allConfigured: store.imageOrder.every((id) => {
+            const matchFormat =
+              configKey(store.images[id]?.formats[i].config) === key;
+            const svgException =
+              store.images[id]?.extension.toLowerCase() === "svg" &&
+              fmt.config.format !== "svg";
+            const nonSvgException =
+              store.images[id]?.extension.toLowerCase() !== "svg" &&
+              fmt.config.format === "svg";
+
+            return matchFormat || svgException || nonSvgException;
+          }),
           allEnabled: store.imageOrder.every(
-            (id) => store.images[id]?.optimized?.[key] != null
+            (id) => store.images[id]?.formats[i].result != null
           ),
         });
       }
@@ -84,15 +142,18 @@ export const Footer: Component = () => {
   const handleExportAll = () => {
     for (const id of store.imageOrder) {
       const img = store.images[id];
-      if (!img?.optimized) continue;
+      if (!img?.formats.some((f) => f.result != null)) continue;
       for (const fmt of img.formats) {
-        if (fmt.format === "original") continue;
-        const key = configKey(fmt);
-        const result = img.optimized[key];
-        if (!result) continue;
+        if (fmt.config.format === "original") continue;
+        if (!fmt.result) continue;
         downloadBlob(
-          result.blob,
-          `${img.name}${"quality" in fmt ? `_q${fmt.quality}` : ""}.${fmt.format}`
+          fmt.result.blob,
+          `${img.name}${[
+            "quality" in fmt.config ? `_q${fmt.config.quality}` : "",
+            "precision" in fmt.config ? `_p${fmt.config.precision}dp` : "",
+          ]
+            .filter(Boolean)
+            .join("")}.${fmt.config.format}`
         );
       }
     }
@@ -101,7 +162,9 @@ export const Footer: Component = () => {
   const handleExportFormat = (key: string, fmt: TFormat) => {
     for (const id of store.imageOrder) {
       const img = store.images[id];
-      const result = img?.optimized?.[key];
+      const result = img?.formats.find(
+        (f) => configKey(f.config) === key
+      )?.result;
       if (!result) continue;
       downloadBlob(
         result.blob,
@@ -110,32 +173,23 @@ export const Footer: Component = () => {
     }
   };
 
-  const handleCopyFormatsToOthers = async () => {
-    setCopyingFormats(true);
-    try {
-      await copyFormats();
-    } finally {
-      setCopyingFormats(false);
-    }
-  };
-
   return (
-    <Show when={store.imageOrder.length > 0}>
+    <Show when={store.imageOrder.length > 1}>
       <footer class={styles.footer}>
         <Show when={store.imageOrder.length > 1}>
           <Button
             kind="secondary"
             class={styles.copySettings}
             disabled={allImagesShareFormats()}
-            loading={copyingFormats()}
-            onClick={handleCopyFormatsToOthers}
+            onClick={copyFormats}
           />
         </Show>
         <div class={styles.exportGroup}>
           <Button
             kind="primary"
             class={styles.exportAll}
-            disabled={!allDone()}
+            disabled={!allImagesShareFormats()}
+            loading={!allEnabled()}
             onClick={handleExportAll}
           >
             Download All

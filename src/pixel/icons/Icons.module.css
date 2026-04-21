@@ -1,7 +1,5 @@
 .svg {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
 
   stroke: currentcolor;
   stroke-linecap: round;

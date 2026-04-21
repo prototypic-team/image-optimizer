@@ -39,15 +39,18 @@
 
 .setting > span:last-of-type {
   width: 36px;
+
+  white-space: nowrap;
 }
 
 .download {
   display: flex;
   gap: 6px;
   align-items: center;
-  padding: 6px 8px;
+  padding: 8px;
 
   color: inherit;
+  font-size: var(--font-size-small);
 
   background: none;
   border: none;

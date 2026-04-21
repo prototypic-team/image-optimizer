@@ -16,15 +16,14 @@ import {
   saveMeta,
 } from "~/modules/persistence";
 
+import { toImage } from "../persistence/utils";
 import { CancelledError } from "./errors";
 
 import type {
   TFormat,
-  TFormatResult,
   TImage,
   TImagesState,
   TPersistedAppMeta,
-  TPersistedImageMeta,
   TViewport,
 } from "Types";
 
@@ -34,6 +33,16 @@ export const DEFAULT_FORMATS: TFormat[] = [
   { format: "webp", quality: 75 },
   { format: "avif", quality: 60 },
 ];
+
+export const DEFAULT_FORMATS_SVG: TFormat[] = [
+  { format: "original" },
+  { format: "svg", precision: 2 },
+  { format: "webp", quality: 75 },
+  { format: "avif", quality: 60 },
+];
+
+const isSvgFile = (file: File): boolean =>
+  file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg");
 
 const createImageFromFile = (file: File): TImage => ({
   id: crypto.randomUUID(),
@@ -45,53 +54,11 @@ const createImageFromFile = (file: File): TImage => ({
     optimized: undefined,
   },
   file,
-  status: "pending",
-  formats: [...DEFAULT_FORMATS],
-  optimized: {},
+  formats: (isSvgFile(file) ? DEFAULT_FORMATS_SVG : DEFAULT_FORMATS).map(
+    (f) => ({ config: f, result: undefined, error: undefined })
+  ),
   viewport: { scale: 1, tx: 0, ty: 0 },
 });
-
-const mimeFromFileName = (fileName: string): string => {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".avif")) return "image/avif";
-  return "application/octet-stream";
-};
-
-const makeTImage = (
-  m: TPersistedImageMeta,
-  buf: ArrayBuffer,
-  optimizedBufs?: Record<string, ArrayBuffer>
-): TImage => {
-  const optimized: Record<string, TFormatResult> = {};
-  if (m.optimized && optimizedBufs) {
-    for (const [cfgKey, meta] of Object.entries(m.optimized)) {
-      const oBuf = optimizedBufs[cfgKey];
-      if (!oBuf) continue;
-      const blob = new Blob([oBuf], { type: meta.mimeType });
-      optimized[cfgKey] = { blob, size: meta.size };
-    }
-  }
-
-  return {
-    id: m.id,
-    name: m.name,
-    fileName: m.fileName,
-    extension: m.extension,
-    file: new File([buf], m.fileName, { type: mimeFromFileName(m.fileName) }),
-    status: m.status,
-    weight: {
-      original: m.weight.original,
-      optimized: m.weight.optimized,
-    },
-    optimized,
-    error: m.error,
-    viewport: m.viewport,
-    formats: m.formats ?? DEFAULT_FORMATS,
-  };
-};
 
 export const [store, setStore] = createStore<TImagesState>({
   images: {},
@@ -111,22 +78,18 @@ const buildAppMeta = (): TPersistedAppMeta => {
       name: img.name,
       fileName: img.fileName,
       extension: img.extension,
-      status: img.status,
       weight: {
         original: img.weight.original,
         optimized: img.weight.optimized,
       },
-      optimized:
-        img.optimized &&
-        Object.fromEntries(
-          Object.entries(img.optimized).map(([k, v]) => [
-            k,
-            { size: v.size, mimeType: v.blob.type },
-          ])
-        ),
-      error: img.error,
       viewport: img.viewport,
-      formats: img.formats,
+      formats: img.formats.map((f) => ({
+        config: f.config,
+        result: f.result
+          ? { size: f.result.size, mimeType: f.result.blob.type }
+          : undefined,
+        error: f.error,
+      })),
     };
   }
 
@@ -178,43 +141,48 @@ export const addImages = (files: File[]) => {
 
 const processImage = async (imageId: string) => {
   const image = store.images[imageId];
-  if (!image || image.status !== "pending") return;
 
-  setStore("images", imageId, "status", "processing");
+  const formats = unwrap(image.formats).filter(
+    (f) => f.config.format !== "original"
+  );
+  if (formats.length === 0) return;
 
-  const formats = unwrap(image.formats);
-  if (formats.length === 0) {
-    setStore("images", imageId, "status", "done");
-    saveMeta(buildAppMeta());
-    return;
+  for (const format of formats) {
+    if (format.result) continue;
+
+    const key = configKey(format.config);
+    optimizeInWorker({
+      imageId,
+      format: format.config,
+      file: image.file,
+      onSuccess: (result) => {
+        setStore(
+          "images",
+          imageId,
+          "formats",
+          produce((prev) => {
+            const index = prev.findIndex((f) => configKey(f.config) === key);
+            if (index !== -1) prev[index].result = result;
+          })
+        );
+        saveMeta(buildAppMeta());
+        saveFiles({ [`${imageId}:${key}`]: result.blob });
+      },
+      onError: (err) => {
+        const error = err instanceof Error ? err.message : String(err);
+        setStore(
+          "images",
+          imageId,
+          "formats",
+          produce((prev) => {
+            const index = prev.findIndex((f) => configKey(f.config) === key);
+            if (index !== -1) prev[index].error = error;
+          })
+        );
+        saveMeta(buildAppMeta());
+      },
+    });
   }
-
-  const files: Record<string, Blob> = {};
-  try {
-    for (const format of formats) {
-      const result = await optimizeInWorker({
-        imageId,
-        format,
-        file: image.file,
-      });
-
-      files[`${imageId}:${configKey(format)}`] = result.blob;
-    }
-  } catch (err) {
-    if (err instanceof CancelledError) return;
-    const error = err instanceof Error ? err.message : String(err);
-    setStore(
-      produce((prev) => {
-        const img = prev.images[imageId];
-        if (img) {
-          img.status = "error";
-          img.error = error;
-        }
-      })
-    );
-  }
-  saveMeta(buildAppMeta());
-  saveFiles(files);
 };
 
 export const setFormatSettings = async (
@@ -226,32 +194,19 @@ export const setFormatSettings = async (
     produce((prev) => {
       const img = prev.images[imageId];
       if (!img) return;
-      img.formats[index] = format;
+      img.formats[index] = {
+        config: format,
+        result: undefined,
+        error: undefined,
+      };
     })
   );
   saveMeta(buildAppMeta());
+  processImage(imageId);
+};
 
-  const img = store.images[imageId];
-  if (!img || img.status === "pending" || img.status === "processing") return;
-  if (format.format !== "original") {
-    try {
-      const result = await optimizeInWorker({
-        imageId,
-        format,
-        file: img.file,
-      });
-      setStore("images", imageId, "optimized", {
-        [configKey(format)]: result,
-      });
-      saveFiles({
-        [`${imageId}:${configKey(format)}`]: result.blob,
-      });
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      setStore("images", imageId, "error", error);
-    }
-  }
-  saveMeta(buildAppMeta());
+export const updateViewport = (imageId: string, viewport: TViewport) => {
+  setStore("images", imageId, "viewport", viewport);
 };
 
 export const setViewport = (imageId: string, viewport: TViewport) => {
@@ -264,87 +219,63 @@ export const setViewport = (imageId: string, viewport: TViewport) => {
  * encodes any formats that are missing. Skips encoding when an image already
  * has an optimized blob for that config key.
  */
-export const copyFormats = async () => {
+export const copyFormats = () => {
   const selectedId = store.selectedImageId;
   if (!selectedId) return;
 
   const source = store.images[selectedId];
   if (!source) return;
 
-  const templateFormats = structuredClone(unwrap(source.formats));
-  const neededKeys = new Set(templateFormats.map(configKey));
+  const targetFormats = structuredClone(unwrap(source.formats));
 
   const targetIds = store.imageOrder.filter((id) => id !== selectedId);
   if (targetIds.length === 0) return;
 
-  const optimizeTasks: Promise<void>[] = [];
+  setStore(
+    produce((prev) => {
+      for (const imageId of targetIds) {
+        const img = prev.images[imageId];
+        if (!img) continue;
 
-  for (const imageId of targetIds) {
-    const img = store.images[imageId];
-    if (!img) continue;
+        for (let i = 0; i < img.formats.length; i++) {
+          const targetFormat = targetFormats[i];
+          const format = img.formats[i];
 
-    const staleKeys = Object.keys(unwrap(img.optimized)).filter(
-      (k) => !neededKeys.has(k)
-    );
+          if (!targetFormat) continue;
+          if (!format) continue;
 
-    setStore(
-      produce((prev) => {
-        const im = prev.images[imageId];
-        if (!im) return;
-        im.formats = structuredClone(templateFormats);
-        for (const k of staleKeys) {
-          delete im.optimized[k];
+          const formatMatch =
+            format.config.format === targetFormat.config.format;
+          const qualityMatch =
+            "quality" in targetFormat.config &&
+            "quality" in format.config &&
+            targetFormat.config.quality === format.config.quality;
+          const precisionMatch =
+            "precision" in targetFormat.config &&
+            "precision" in format.config &&
+            targetFormat.config.precision === format.config.precision;
+
+          if (format.config.format === "original" && formatMatch) continue;
+          if (formatMatch && (qualityMatch || precisionMatch)) continue;
+          if (
+            targetFormat.config.format === "svg" &&
+            img.extension.toLowerCase() !== "svg"
+          )
+            continue;
+
+          prev.images[imageId].formats[i] = {
+            config: targetFormat.config,
+            result: undefined,
+            error: undefined,
+          };
         }
-      })
-    );
-
-    if (staleKeys.length > 0) {
-      removeFiles(staleKeys.map((k) => `${imageId}:${k}`));
-    }
-
-    if (img.status === "pending") continue;
-
-    if (img.status === "processing") {
-      rejectImageTasks(imageId, new CancelledError());
-      setStore("images", imageId, "status", "pending");
-      processImage(imageId);
-      continue;
-    }
-
-    for (const format of templateFormats) {
-      if (format.format === "original") continue;
-
-      const key = configKey(format);
-      if (store.images[imageId]?.optimized[key]) continue;
-
-      optimizeTasks.push(
-        (async () => {
-          const file = store.images[imageId]?.file;
-          if (!file) return;
-
-          try {
-            const result = await optimizeInWorker({
-              imageId,
-              format,
-              file,
-            });
-            setStore("images", imageId, "optimized", {
-              [key]: result,
-            });
-            saveFiles({
-              [`${imageId}:${key}`]: result.blob,
-            });
-          } catch (err) {
-            const error = err instanceof Error ? err.message : String(err);
-            setStore("images", imageId, "error", error);
-          }
-        })()
-      );
-    }
-  }
-
-  await Promise.all(optimizeTasks);
+      }
+    })
+  );
   saveMeta(buildAppMeta());
+  for (const imageId of targetIds) {
+    processImage(imageId);
+  }
 };
 
 export const removeImage = (imageId: string) => {
@@ -402,15 +333,16 @@ export const hydrateFromPersistence = async (
     }
 
     let optimizedBufs: Record<string, ArrayBuffer> | undefined;
-    if (m.optimized) {
+    if (m.formats) {
       optimizedBufs = {};
-      for (const cfgKey of Object.keys(m.optimized)) {
-        const oBuf = await loadBlob(`${id}:${cfgKey}`);
-        if (oBuf) optimizedBufs[cfgKey] = oBuf;
+      for (const format of m.formats) {
+        const key = configKey(format.config);
+        const oBuf = await loadBlob(`${id}:${key}`);
+        if (oBuf) optimizedBufs[key] = oBuf;
       }
     }
 
-    images[id] = makeTImage(m, buf, optimizedBufs);
+    images[id] = toImage(m, buf, optimizedBufs);
     imageOrder.push(id);
   }
 
@@ -432,10 +364,7 @@ export const hydrateFromPersistence = async (
   onReady();
 
   for (const id of imageOrder) {
-    const img = images[id];
-    if (img?.status === "pending") {
-      processImage(id);
-    }
+    processImage(id);
   }
 
   if (needSave) {

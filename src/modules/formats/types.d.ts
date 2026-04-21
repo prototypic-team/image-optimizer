@@ -1,5 +1,5 @@
 declare module "Types" {
-  export type TEncodableFormat = "avif" | "jpeg" | "png" | "webp";
+  export type TEncodableFormat = "avif" | "jpeg" | "png" | "svg" | "webp";
 
   export type TAvifFormat = {
     format: "avif";
@@ -21,6 +21,11 @@ declare module "Types" {
     quality: number;
     maxDimension?: number;
   };
+  export type TSvgFormat = {
+    format: "svg";
+    /** Number of decimal places for path coordinates (0–8). */
+    precision: number;
+  };
   export type TOriginalFormat = { format: "original" };
 
   export type TFormat =
@@ -28,6 +33,7 @@ declare module "Types" {
     | TJpegFormat
     | TPngFormat
     | TWebpFormat
+    | TSvgFormat
     | TOriginalFormat;
 
   export type TFormatResult = {
@@ -43,7 +49,8 @@ declare module "Types" {
         format: TFormat;
       }
     | { type: "evict"; imageId: string }
-    | { type: "file"; imageId: string; file: File };
+    | { type: "file"; imageId: string; file: File }
+    | { type: "bitmap"; imageId: string; bitmap: ImageBitmap };
 
   export type TWorkerResponse =
     | {
@@ -55,6 +62,7 @@ declare module "Types" {
       }
     | { type: "complete"; taskId: string }
     | { type: "needsSource"; taskId: string }
+    | { type: "needsBitmap"; taskId: string }
     | {
         type: "error";
         taskId: string;

@@ -11,14 +11,15 @@ declare module "Types" {
     fileName: string;
     extension: string;
     file: File;
-    status: "pending" | "processing" | "done" | "error";
     weight: {
       original: number;
       optimized: number | undefined;
     };
-    optimized: Record<string, TFormatResult>;
-    formats: TFormat[];
-    error?: string;
+    formats: {
+      config: TFormat;
+      result: TFormatResult | undefined;
+      error: string | undefined;
+    }[];
     viewport: TViewport;
   };
 

@@ -10,7 +10,6 @@ import {
 } from "solid-js";
 
 import { Hud } from "~/components/ImagePreview/Hud";
-import { configKey } from "~/modules/formats/utils";
 import { setFormatSettings, setViewport, store } from "~/modules/state";
 import { cn } from "~/pixel";
 import { debounce } from "~/utils/debounce";
@@ -27,6 +26,7 @@ type THudPreviewRow = {
   size: number;
   placeholder: boolean;
   format: TFormat;
+  result?: { size: number; blob: Blob };
 };
 
 const sectorClasses = ["top-left", "top-right", "bottom-left", "bottom-right"];
@@ -217,26 +217,26 @@ export const ImagePreview: Component = () => {
     const urlsToRevoke = new Set<string>();
 
     for (const format of img.formats) {
-      if (format.format === "original") {
+      if (format.config.format === "original") {
         result.push({
           imageId: img.id,
           url: origUrl,
           size: img.file.size,
           placeholder: false,
-          format,
+          format: format.config,
         });
         urlsToRevoke.add(origUrl);
       } else {
-        const r = img.optimized?.[configKey(format)];
-        if (r) {
-          const u = URL.createObjectURL(r.blob);
+        if (format.result) {
+          const u = URL.createObjectURL(format.result.blob);
           urlsToRevoke.add(u);
           result.push({
             imageId: img.id,
             url: u,
-            size: r.size,
+            size: format.result.size,
             placeholder: false,
-            format,
+            format: format.config,
+            result: format.result,
           });
         } else {
           result.push({
@@ -244,7 +244,7 @@ export const ImagePreview: Component = () => {
             url: origUrl,
             size: 0,
             placeholder: true,
-            format,
+            format: format.config,
           });
         }
       }
@@ -271,15 +271,11 @@ export const ImagePreview: Component = () => {
       return;
     }
 
-    if (preview.placeholder) return;
-
-    const key = configKey(preview.format);
-    const r = img.optimized[key];
-    if (!r) return;
+    if (!preview.result) return;
 
     const ext =
       preview.format.format === "jpeg" ? "jpg" : preview.format.format;
-    downloadBlob(r.blob, `${img.name}.${ext}`);
+    downloadBlob(preview.result.blob, `${img.name}.${ext}`);
   };
 
   return (

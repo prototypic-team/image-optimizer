@@ -59,7 +59,15 @@ async function readFilesFromDirectory(
   return read().then(() => files);
 }
 
-const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"];
+const IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".svg",
+];
 const IMAGE_MIME_PREFIXES = ["image/"];
 export const FILE_INPUT_ACCEPT = IMAGE_EXTENSIONS.join(",");
 
@@ -90,3 +98,13 @@ export async function collectFilesFromDrop(
   }
   return files;
 }
+
+export const mimeFromFileName = (fileName: string): string => {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".avif")) return "image/avif";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  return "application/octet-stream";
+};

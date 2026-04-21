@@ -1,4 +1,4 @@
-import { TEncodableFormat, TFormat } from "Types";
+import { TEncodableFormat, TFormat, TSvgFormat } from "Types";
 
 export const configKey = ({ format, ...config }: TFormat): string => {
   const configString = Object.entries(config)
@@ -13,6 +13,7 @@ const formatKeys: Set<TEncodableFormat | "original"> = new Set([
   "original",
   "avif",
   "jpeg",
+  "svg",
   "webp",
   "png",
 ]);
@@ -31,16 +32,18 @@ const qualityFormats: Set<TEncodableFormat | "original"> = new Set([
   "png",
   "webp",
 ]);
-export const supportsQualitySetting = (
-  format: TEncodableFormat | "original"
-) => {
-  return qualityFormats.has(format as TEncodableFormat | "original");
-};
 
 export const guardQualityFormat = (
   format: TFormat
 ): Extract<TFormat, { quality: number }> | undefined => {
-  return supportsQualitySetting(format.format) && "quality" in format
-    ? format
+  return qualityFormats.has(format.format as TEncodableFormat | "original") &&
+    "quality" in format
+    ? (format as Extract<TFormat, { quality: number }>)
     : undefined;
+};
+
+export const guardPrecisionFormat = (
+  format: TFormat
+): TSvgFormat | undefined => {
+  return format.format === "svg" ? (format as TSvgFormat) : undefined;
 };

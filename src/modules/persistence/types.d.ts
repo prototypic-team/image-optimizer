@@ -14,7 +14,11 @@ declare module "Types" {
 
   export type TPersistedImageMeta = MergeWithPriority<
     {
-      optimized: Record<string, TPersistedFormatMeta>;
+      formats: {
+        config: TFormat;
+        result: TPersistedFormatMeta | undefined;
+        error: string | undefined;
+      }[];
     },
     Omit<TImage, "file">
   >;
