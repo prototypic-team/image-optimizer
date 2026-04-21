@@ -3,7 +3,6 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  For,
   Index,
   onCleanup,
   Show,
@@ -12,7 +11,6 @@ import {
 import { Hud } from "~/components/ImagePreview/Hud";
 import { setFormatSettings, setViewport, store } from "~/modules/state";
 import { cn } from "~/pixel";
-import { debounce } from "~/utils/debounce";
 import { downloadBlob } from "~/utils/files";
 
 import { Footer } from "./Footer";
@@ -257,74 +255,83 @@ export const ImagePreview: Component = () => {
     return result;
   });
 
-  const onFormatChange = debounce(setFormatSettings, {
-    threshold: 300,
-    throttle: true,
-  });
-
-  const downloadHudFormat = (preview: THudPreviewRow) => {
-    const img = store.images[preview.imageId];
+  const downloadHudFormat = (format: {
+    config: TFormat;
+    result?: { size: number; blob: Blob };
+  }) => {
+    const img = selectedImage();
     if (!img) return;
 
-    if (preview.format.format === "original") {
+    if (format.config.format === "original") {
       downloadBlob(img.file, `${img.name}.${img.extension}`);
       return;
     }
 
-    if (!preview.result) return;
+    if (!format.result) return;
 
-    const ext =
-      preview.format.format === "jpeg" ? "jpg" : preview.format.format;
-    downloadBlob(preview.result.blob, `${img.name}.${ext}`);
+    const ext = format.config.format === "jpeg" ? "jpg" : format.config.format;
+    downloadBlob(format.result.blob, `${img.name}.${ext}`);
   };
 
   return (
     <div class={styles.container}>
       <Show when={selectedImage()}>
-        <div class={styles.viewportContainer}>
-          <div
-            ref={viewportRef}
-            class={styles.viewport}
-            classList={{ [styles.panning]: dragging() }}
-          >
-            <Index each={Object.values(previews() ?? {})}>
-              {(preview) => (
-                <div class={styles.preview}>
-                  <img
-                    src={preview().url}
-                    alt=""
-                    decoding="sync"
-                    classList={{
-                      [styles.placeholder]: !!preview().placeholder,
-                    }}
-                    style={{ transform: imageTransform() }}
-                    draggable={false}
-                  />
-                </div>
+        {(image) => (
+          <div class={styles.viewportContainer}>
+            <div
+              ref={viewportRef}
+              class={styles.viewport}
+              classList={{ [styles.panning]: dragging() }}
+            >
+              <Index each={image().formats}>
+                {(format, index) => (
+                  <div class={styles.preview}>
+                    <img
+                      src={previews()?.[index]?.url}
+                      alt=""
+                      decoding="sync"
+                      classList={{
+                        [styles.placeholder]:
+                          format().config.format !== "original" &&
+                          !format().result,
+                      }}
+                      style={{ transform: imageTransform() }}
+                      draggable={false}
+                    />
+                  </div>
+                )}
+              </Index>
+              <div class={styles.dividerH} />
+              <div class={styles.dividerV} />
+            </div>
+            <Index each={image().formats}>
+              {(format, index) => (
+                <Hud
+                  class={cn(
+                    styles.hud,
+                    styles[sectorClasses[index % sectorClasses.length]]
+                  )}
+                  settings={format().config}
+                  size={
+                    format().config.format === "original"
+                      ? image().weight.original
+                      : (format().result?.size ?? 0)
+                  }
+                  isProcessing={
+                    format().config.format !== "original" && !format().result
+                  }
+                  downloadDisabled={
+                    format().config.format !== "original" && !format().result
+                  }
+                  onDownload={() => downloadHudFormat(format())}
+                  onChange={(newFormat) =>
+                    setFormatSettings(image().id, index, newFormat)
+                  }
+                />
               )}
             </Index>
-            <div class={styles.dividerH} />
-            <div class={styles.dividerV} />
           </div>
-          <For each={Object.values(previews() ?? {})}>
-            {(preview, index) => (
-              <Hud
-                class={cn(
-                  styles.hud,
-                  styles[sectorClasses[index() % sectorClasses.length]]
-                )}
-                settings={preview.format}
-                size={preview.size}
-                isProcessing={preview.placeholder}
-                downloadDisabled={preview.placeholder}
-                onDownload={() => downloadHudFormat(preview)}
-                onChange={(format) =>
-                  onFormatChange(preview.imageId, index(), format)
-                }
-              />
-            )}
-          </For>
-        </div>
+        )}
       </Show>
       <Footer />
     </div>

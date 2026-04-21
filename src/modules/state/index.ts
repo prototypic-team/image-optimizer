@@ -190,17 +190,11 @@ export const setFormatSettings = async (
   index: number,
   format: TFormat
 ) => {
-  setStore(
-    produce((prev) => {
-      const img = prev.images[imageId];
-      if (!img) return;
-      img.formats[index] = {
-        config: format,
-        result: undefined,
-        error: undefined,
-      };
-    })
-  );
+  setStore("images", imageId, "formats", index, () => ({
+    config: format,
+    result: undefined,
+    error: undefined,
+  }));
   saveMeta(buildAppMeta());
   processImage(imageId);
 };
