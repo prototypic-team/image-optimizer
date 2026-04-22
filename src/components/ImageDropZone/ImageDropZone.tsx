@@ -1,5 +1,6 @@
 import { Component, createMemo, createSignal, JSX, Show } from "solid-js";
 
+import { preloadWorkers } from "~/modules/formats";
 import { store } from "~/modules/state";
 import { cn } from "~/pixel";
 import { collectFilesFromDrop } from "~/utils/files";
@@ -18,6 +19,7 @@ export const ImageDropZone: Component<Props> = (props) => {
 
   const handleClick: JSX.EventHandler<HTMLDivElement, MouseEvent> = () => {
     if (Object.keys(store.images).length > 0) return;
+    preloadWorkers();
     props.openFilePicker();
   };
 
@@ -38,7 +40,10 @@ export const ImageDropZone: Component<Props> = (props) => {
   const handleDragEnter: JSX.EventHandler<HTMLDivElement, DragEvent> = (e) => {
     e.preventDefault();
     dragCounter++;
-    if (e.dataTransfer?.types.includes("Files")) setDragging(true);
+    if (e.dataTransfer?.types.includes("Files")) {
+      setDragging(true);
+      preloadWorkers();
+    }
   };
 
   const handleDragLeave: JSX.EventHandler<HTMLDivElement, DragEvent> = (e) => {

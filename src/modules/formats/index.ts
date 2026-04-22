@@ -74,6 +74,7 @@ type Bridge = {
     onSuccess: (result: TFormatResult) => void;
     onError: (err: Error) => void;
   }): void;
+  preload(): void;
   rejectByImageId(imageId: string, err: Error): void;
   prioritize(taskId: string): void;
   send(msg: TWorkerRequest, transfer?: Transferable[]): void;
@@ -105,6 +106,10 @@ function createBridge(workerFactory: () => Worker): Bridge {
   }
 
   const bridge: Bridge = {
+    preload() {
+      getWorker();
+    },
+
     send(msg, transfer) {
       if (transfer?.length) getWorker().postMessage(msg, transfer);
       else getWorker().postMessage(msg);
@@ -255,6 +260,10 @@ const rasterBridge = createBridge(
       type: "module",
     })
 );
+
+export function preloadWorkers() {
+  rasterBridge.preload();
+}
 
 export function rejectImageTasks(
   imageId: string,
