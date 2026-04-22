@@ -43,6 +43,30 @@
   animation: failed 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
+html:active-view-transition-type(forwards) {
+  &::view-transition-old(image) {
+    animation-duration: 0.01s;
+  }
+
+  &::view-transition-new(image) {
+    animation-duration: 0.1s;
+    animation-timing-function: ease-out;
+    animation-delay: 0.1s;
+  }
+}
+
+html:active-view-transition-type(backwards) {
+  &::view-transition-old(image) {
+    animation-duration: 0.01s;
+  }
+
+  &::view-transition-new(image) {
+    animation-duration: 0.1s;
+    animation-timing-function: ease-out;
+    animation-delay: 0.1s;
+  }
+}
+
 .f {
   display: flex;
 

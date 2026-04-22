@@ -17,15 +17,6 @@ import styles from "./ImagePreview.module.css";
 
 import type { TFormat } from "Types";
 
-type THudPreviewRow = {
-  imageId: string;
-  url: string;
-  size: number;
-  placeholder: boolean;
-  format: TFormat;
-  result?: { size: number; blob: Blob };
-};
-
 const hudPosition = [
   "top-left",
   "top-right",
@@ -56,8 +47,6 @@ export const ImagePreview: Component = () => {
 
   createEffect(() => {
     const id = store.selectedImageId;
-
-    saveViewport();
 
     const v = id ? store.images[id]?.viewport : null;
     setScale(v?.scale ?? 1);
@@ -210,45 +199,22 @@ export const ImagePreview: Component = () => {
     return viewportRef;
   });
 
-  const previews = createMemo(() => {
+  const urls = createMemo(() => {
     const img = selectedImage();
     if (!img) return undefined;
 
     const origUrl = URL.createObjectURL(img.file);
-    const result: THudPreviewRow[] = [];
+    const result: string[] = [];
     const urlsToRevoke = new Set<string>();
 
     for (const format of img.formats) {
-      if (format.config.format === "original") {
-        result.push({
-          imageId: img.id,
-          url: origUrl,
-          size: img.file.size,
-          placeholder: false,
-          format: format.config,
-        });
+      if (format.config.format === "original" || !format.result) {
+        result.push(origUrl);
         urlsToRevoke.add(origUrl);
       } else {
-        if (format.result) {
-          const u = URL.createObjectURL(format.result.blob);
-          urlsToRevoke.add(u);
-          result.push({
-            imageId: img.id,
-            url: u,
-            size: format.result.size,
-            placeholder: false,
-            format: format.config,
-            result: format.result,
-          });
-        } else {
-          result.push({
-            imageId: img.id,
-            url: origUrl,
-            size: 0,
-            placeholder: true,
-            format: format.config,
-          });
-        }
+        const u = URL.createObjectURL(format.result.blob);
+        urlsToRevoke.add(u);
+        result.push(u);
       }
     }
 
@@ -291,9 +257,8 @@ export const ImagePreview: Component = () => {
                 {(format, index) => (
                   <div class={styles.preview}>
                     <img
-                      src={previews()?.[index]?.url}
+                      src={urls()?.[index]}
                       alt=""
-                      decoding="sync"
                       classList={{
                         [styles.placeholder]:
                           format().config.format !== "original" &&

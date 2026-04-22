@@ -265,7 +265,11 @@ export const clearAll = () => {
 };
 
 export const setSelectedImage = (imageId: string | undefined) => {
-  setStore("selectedImageId", imageId);
+  document.startViewTransition({
+    update: () => {
+      setStore("selectedImageId", imageId);
+    },
+  });
   if (imageId) prioritizeTask(imageId);
   saveMeta(buildAppMeta());
 };
