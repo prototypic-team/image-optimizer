@@ -11,10 +11,6 @@ declare module "Types" {
     fileName: string;
     extension: string;
     file: File;
-    weight: {
-      original: number;
-      optimized: number | undefined;
-    };
     formats: {
       config: TFormat;
       result: TFormatResult | undefined;

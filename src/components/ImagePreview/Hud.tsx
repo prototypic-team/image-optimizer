@@ -1,4 +1,10 @@
-import { type Component, createMemo, createSignal, Show } from "solid-js";
+import {
+  type Component,
+  createEffect,
+  createMemo,
+  createSignal,
+  Show,
+} from "solid-js";
 
 import {
   guardFormatKey,
@@ -22,12 +28,13 @@ const FORMAT_OPTIONS: { value: TFormat["format"]; label: string }[] = [
 ];
 
 export type HudProps = {
-  settings: TFormat;
-  size: number;
-  class?: string;
-  isProcessing: boolean;
-  downloadDisabled?: boolean;
-  onDownload?: () => void;
+  format: {
+    config: TFormat;
+    result?: { size: number; blob: Blob };
+    error?: string;
+  };
+  position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  onDownload: () => void;
   onChange: (newSettings: TFormat) => void;
 };
 
@@ -41,7 +48,8 @@ export const Hud: Component<HudProps> = (props) => {
     () => selectedImage()?.extension?.toLowerCase() === "svg"
   );
 
-  const [format, setFormat] = createSignal(props.settings);
+  const [format, setFormat] = createSignal(props.format.config);
+  createEffect(() => setFormat(props.format.config));
 
   const formatOptions = createMemo(() => [
     {
@@ -56,6 +64,7 @@ export const Hud: Component<HudProps> = (props) => {
 
   const onFormatKeyChange = (value: string) => {
     const newFormatKey = guardFormatKey(value);
+    const f = format();
 
     switch (newFormatKey) {
       case "original":
@@ -64,20 +73,19 @@ export const Hud: Component<HudProps> = (props) => {
         return;
 
       case "svg": {
-        const f: TSvgFormat = {
+        const newFormat: TSvgFormat = {
           format: "svg",
-          precision:
-            "precision" in props.settings ? props.settings.precision : 2,
+          precision: "precision" in f ? f.precision : 2,
         };
-        setFormat(f);
-        props.onChange(f);
+        setFormat(newFormat);
+        props.onChange(newFormat);
         return;
       }
 
       default: {
         const newFormat: Exclude<TFormat, TOriginalFormat | TSvgFormat> = {
           format: newFormatKey,
-          quality: "quality" in props.settings ? props.settings.quality : 75,
+          quality: "quality" in f ? f.quality : 75,
         };
         setFormat(newFormat);
         props.onChange(newFormat);
@@ -92,11 +100,12 @@ export const Hud: Component<HudProps> = (props) => {
   });
 
   const onQualityChange = (value: number) => {
-    if (props.settings.format === "original") return;
-    if (props.settings.format === "svg") return;
+    const f = format();
+    if (f.format === "original") return;
+    if (f.format === "svg") return;
 
     const newFormat: Exclude<TFormat, TOriginalFormat | TSvgFormat> = {
-      format: props.settings.format,
+      format: f.format,
       quality: Math.min(100, Math.max(1, Math.round(value))),
     };
 
@@ -112,31 +121,31 @@ export const Hud: Component<HudProps> = (props) => {
   };
 
   const downloadAriaLabel = createMemo(() => {
-    const f = format();
-    const sizeStr = formatFileSize(props.size);
+    const sizeStr = formatFileSize(props.format.result?.size ?? 0);
 
-    if (f.format === "original") {
+    if (props.format.config.format === "original") {
       const ext = selectedImage()?.extension;
       return ext
         ? `Download original, ${sizeStr}`
         : `Download original, ${sizeStr}`;
     }
 
-    if (f.format === "svg") {
-      return `Download SVG, precision ${(f as TSvgFormat).precision}, ${sizeStr}`;
+    if (props.format.config.format === "svg") {
+      return `Download SVG, precision ${props.format.config.precision}, ${sizeStr}`;
     }
 
-    const qf = guardQualityFormat(f);
+    const qf = guardQualityFormat(props.format.config);
     if (qf) {
-      return `Download ${f.format}, ${qf.quality}% quality, ${sizeStr}`;
+      return `Download ${props.format.config.format}, ${qf.quality}% quality, ${sizeStr}`;
     }
 
-    return `Download ${f.format}, ${sizeStr}`;
+    return `Download ${props.format.config.format}, ${sizeStr}`;
   });
 
   return (
     <section
-      class={cn(styles.root, props.class)}
+      class={cn(styles.root, styles[props.position])}
+      classList={{ failed: !!props.format.error }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <Select
@@ -181,15 +190,25 @@ export const Hud: Component<HudProps> = (props) => {
       <button
         type="button"
         class={styles.download}
-        disabled={props.downloadDisabled}
-        onClick={() => props.onDownload?.()}
+        disabled={!props.format.result}
+        onClick={props.onDownload}
         aria-label={downloadAriaLabel()}
       >
-        <Show when={!props.isProcessing} fallback={"Processing..."}>
+        <Show
+          when={props.format.result}
+          fallback={props.format.error ? "Error" : "Processing..."}
+        >
           <Icon.Download width={14} height={14} />
-          <span>{formatFileSize(props.size)}</span>
+          <span>{formatFileSize(props.format.result?.size ?? 0)}</span>
         </Show>
       </button>
+      <Show when={props.format.error}>
+        {(error) => (
+          <div class={styles.error}>
+            <span>{error()}</span>
+          </div>
+        )}
+      </Show>
     </section>
   );
 };

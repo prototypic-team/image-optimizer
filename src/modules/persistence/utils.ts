@@ -18,18 +18,19 @@ export const toImage = (
       if (format.config.format === "original") {
         formats.push({
           config: format.config,
-          result: undefined,
+          result: { blob: new Blob([buf]), size: buf.byteLength },
           error: undefined,
         });
       } else {
         const key = configKey(format.config);
         const oBuf = optimizedBufs[key];
-        if (!oBuf) continue;
-        const blob = new Blob([oBuf], { type: format.result?.mimeType ?? "" });
+        const blob = oBuf
+          ? new Blob([oBuf], { type: format.result?.mimeType ?? "" })
+          : undefined;
         formats.push({
           config: format.config,
-          result: { blob, size: oBuf.byteLength },
-          error: format.error,
+          result: blob ? { blob, size: oBuf.byteLength } : undefined,
+          error: undefined,
         });
       }
     }
@@ -41,10 +42,6 @@ export const toImage = (
     fileName: m.fileName,
     extension: m.extension,
     file: new File([buf], m.fileName, { type: mimeFromFileName(m.fileName) }),
-    weight: {
-      original: m.weight.original,
-      optimized: m.weight.optimized,
-    },
     viewport: m.viewport,
     formats,
   };

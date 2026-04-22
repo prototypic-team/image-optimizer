@@ -10,7 +10,6 @@ import {
 
 import { Hud } from "~/components/ImagePreview/Hud";
 import { setFormatSettings, setViewport, store } from "~/modules/state";
-import { cn } from "~/pixel";
 import { downloadBlob } from "~/utils/files";
 
 import { Footer } from "./Footer";
@@ -27,7 +26,12 @@ type THudPreviewRow = {
   result?: { size: number; blob: Blob };
 };
 
-const sectorClasses = ["top-left", "top-right", "bottom-left", "bottom-right"];
+const hudPosition = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+] as const;
 
 export const ImagePreview: Component = () => {
   const selectedImage = () => {
@@ -307,22 +311,8 @@ export const ImagePreview: Component = () => {
             <Index each={image().formats}>
               {(format, index) => (
                 <Hud
-                  class={cn(
-                    styles.hud,
-                    styles[sectorClasses[index % sectorClasses.length]]
-                  )}
-                  settings={format().config}
-                  size={
-                    format().config.format === "original"
-                      ? image().weight.original
-                      : (format().result?.size ?? 0)
-                  }
-                  isProcessing={
-                    format().config.format !== "original" && !format().result
-                  }
-                  downloadDisabled={
-                    format().config.format !== "original" && !format().result
-                  }
+                  position={hudPosition[index % hudPosition.length]}
+                  format={format()}
                   onDownload={() => downloadHudFormat(format())}
                   onChange={(newFormat) =>
                     setFormatSettings(image().id, index, newFormat)

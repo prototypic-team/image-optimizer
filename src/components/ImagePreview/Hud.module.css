@@ -1,6 +1,10 @@
 .root {
+  position: absolute;
+  z-index: 2;
+
   display: flex;
   flex-direction: column;
+  width: 150px;
 
   color: var(--color-primary);
   font-weight: var(--font-weight-medium);
@@ -9,6 +13,28 @@
   border-radius: var(--border-radius-controls);
   box-shadow: 0 1px 3px #00000010;
   backdrop-filter: blur(20px);
+
+  pointer-events: auto;
+}
+
+.root.top-left {
+  top: 8px;
+  left: 8px;
+}
+
+.root.top-right {
+  top: 8px;
+  right: 8px;
+}
+
+.root.bottom-left {
+  bottom: 8px;
+  left: 8px;
+}
+
+.root.bottom-right {
+  right: 8px;
+  bottom: 8px;
 }
 
 .select select {
@@ -80,4 +106,40 @@
 
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.error {
+  position: absolute;
+
+  width: 100%;
+  padding: 6px 8px;
+
+  color: var(--color-base);
+  font-size: var(--font-size-small);
+
+  background-color: color-mix(in oklab, var(--color-danger) 90%, transparent);
+  border-radius: var(--border-radius-controls);
+  box-shadow:
+    0 1px 3px #00000010,
+    0 8px 20px -4px #00000050;
+}
+
+.top-left .error {
+  top: calc(100% + 8px);
+  left: 0;
+}
+
+.top-right .error {
+  top: calc(100% + 8px);
+  right: 0;
+}
+
+.bottom-left .error {
+  bottom: calc(100% + 8px);
+  left: 0;
+}
+
+.bottom-right .error {
+  right: 0;
+  bottom: calc(100% + 8px);
 }

@@ -15,9 +15,10 @@ import {
   saveFiles,
   saveMeta,
 } from "~/modules/persistence";
+import { toImage } from "~/modules/persistence/utils";
 
-import { toImage } from "../persistence/utils";
 import { CancelledError } from "./errors";
+import { fromFile } from "./utils";
 
 import type {
   TFormat,
@@ -26,39 +27,6 @@ import type {
   TPersistedAppMeta,
   TViewport,
 } from "Types";
-
-export const DEFAULT_FORMATS: TFormat[] = [
-  { format: "original" },
-  { format: "jpeg", quality: 75 },
-  { format: "webp", quality: 75 },
-  { format: "avif", quality: 60 },
-];
-
-export const DEFAULT_FORMATS_SVG: TFormat[] = [
-  { format: "original" },
-  { format: "svg", precision: 2 },
-  { format: "webp", quality: 75 },
-  { format: "avif", quality: 60 },
-];
-
-const isSvgFile = (file: File): boolean =>
-  file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg");
-
-const createImageFromFile = (file: File): TImage => ({
-  id: crypto.randomUUID(),
-  name: file.name.replace(/\.[^.]+$/, ""),
-  fileName: file.name,
-  extension: file.name.split(".").pop() ?? "",
-  weight: {
-    original: file.size,
-    optimized: undefined,
-  },
-  file,
-  formats: (isSvgFile(file) ? DEFAULT_FORMATS_SVG : DEFAULT_FORMATS).map(
-    (f) => ({ config: f, result: undefined, error: undefined })
-  ),
-  viewport: { scale: 1, tx: 0, ty: 0 },
-});
 
 export const [store, setStore] = createStore<TImagesState>({
   images: {},
@@ -78,17 +46,12 @@ const buildAppMeta = (): TPersistedAppMeta => {
       name: img.name,
       fileName: img.fileName,
       extension: img.extension,
-      weight: {
-        original: img.weight.original,
-        optimized: img.weight.optimized,
-      },
       viewport: img.viewport,
       formats: img.formats.map((f) => ({
         config: f.config,
         result: f.result
           ? { size: f.result.size, mimeType: f.result.blob.type }
           : undefined,
-        error: f.error,
       })),
     };
   }
@@ -110,7 +73,7 @@ export const addImages = (files: File[]) => {
 
   for (const file of files) {
     if (existingNames.has(file.name)) continue;
-    const image = createImageFromFile(file);
+    const image = fromFile(file);
     newImages.push(image);
     existingNames.add(file.name);
     newFiles[image.id] = file;
@@ -192,7 +155,13 @@ export const setFormatSettings = async (
 ) => {
   setStore("images", imageId, "formats", index, () => ({
     config: format,
-    result: undefined,
+    result:
+      format.format === "original"
+        ? {
+            blob: store.images[imageId].file,
+            size: store.images[imageId].file.size,
+          }
+        : undefined,
     error: undefined,
   }));
   saveMeta(buildAppMeta());

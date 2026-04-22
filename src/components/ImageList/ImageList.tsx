@@ -48,7 +48,7 @@ export const ImageList: Component<Props> = (props) => {
                       class={styles.thumb}
                     />
                   </div>
-                  <span>{formatFileSize(image.weight.original)}</span>
+                  <span>{formatFileSize(image.file.size)}</span>
                 </button>
                 <button
                   type="button"

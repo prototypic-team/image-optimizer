@@ -129,32 +129,3 @@
   background: color-mix(in oklab, var(--color-primary) 30%, transparent);
   border-left: 1px solid color-mix(in oklab, var(--color-base) 20%, transparent);
 }
-
-.hud {
-  position: absolute;
-  z-index: 2;
-
-  width: 150px;
-
-  pointer-events: auto;
-}
-
-.hud.top-left {
-  top: 8px;
-  left: 8px;
-}
-
-.hud.top-right {
-  top: 8px;
-  right: 8px;
-}
-
-.hud.bottom-left {
-  bottom: 8px;
-  left: 8px;
-}
-
-.hud.bottom-right {
-  right: 8px;
-  bottom: 8px;
-}

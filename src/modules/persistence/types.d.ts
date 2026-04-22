@@ -17,7 +17,6 @@ declare module "Types" {
       formats: {
         config: TFormat;
         result: TPersistedFormatMeta | undefined;
-        error: string | undefined;
       }[];
     },
     Omit<TImage, "file">
