@@ -6,6 +6,12 @@
   padding: 16px 16px 12px 0;
 }
 
+@media (width <= 600px) {
+  .container {
+    padding: 16px 16px 12px;
+  }
+}
+
 .viewportContainer {
   position: relative;
 
@@ -197,4 +203,16 @@
 .bgSwatch:focus-visible {
   outline: var(--focus-outline);
   outline-offset: 2px;
+}
+
+@media (width <= 600px) {
+  .bgControl {
+    top: 50%;
+    bottom: unset;
+    left: 8px;
+
+    flex-direction: column;
+
+    transform: translate(0, -50%);
+  }
 }

@@ -232,6 +232,7 @@
     z-index: 2;
 
     flex-direction: column-reverse;
+    gap: 0;
     width: 100%;
     height: auto;
     padding: 0;
@@ -244,6 +245,7 @@
     flex-flow: row nowrap;
     width: 100vw;
     padding: 16px;
+    padding-top: 0;
     overflow-x: auto;
 
     scroll-padding-left: 16px;
@@ -259,13 +261,13 @@
   .itemWrapper {
     flex-shrink: 0;
     width: max-content;
-    max-width: 130px;
 
     scroll-snap-align: start;
   }
 
-  .item {
-    border: 1px solid var(--color-divider);
+  .thumb {
+    max-width: 100px;
+    max-height: 90px;
   }
 
   .remove {
