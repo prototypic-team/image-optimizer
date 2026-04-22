@@ -26,6 +26,7 @@
   height: 100%;
   overflow: hidden;
 
+  background-color: var(--color-bg);
   background-image:
     linear-gradient(
       45deg,
@@ -53,6 +54,18 @@
 
   touch-action: none;
   user-select: none;
+}
+
+.viewport.black {
+  --color-bg: #222;
+}
+
+.viewport.gray {
+  --color-bg: #999;
+}
+
+.viewport.white {
+  --color-bg: #fff;
 }
 
 .viewport.panning {
@@ -128,4 +141,60 @@
 
   background: color-mix(in oklab, var(--color-primary) 30%, transparent);
   border-left: 1px solid color-mix(in oklab, var(--color-base) 20%, transparent);
+}
+
+.bgControl {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  z-index: 2;
+
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+
+  background: color-mix(in oklab, var(--color-base) 70%, transparent);
+  border-radius: 20px;
+  box-shadow: 0 1px 4px #0002;
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+
+  pointer-events: all;
+}
+
+.bgSwatch {
+  width: 20px;
+  height: 20px;
+
+  border: none;
+  border-radius: 12px;
+  outline: none;
+  cursor: pointer;
+
+  transition:
+    transform var(--transition-basic),
+    box-shadow var(--transition-basic);
+}
+
+.bgSwatch[data-color="white"] {
+  background: #fff;
+}
+
+.bgSwatch[data-color="gray"] {
+  background: #999;
+}
+
+.bgSwatch[data-color="black"] {
+  background: #222;
+}
+
+.bgSwatch[data-active="true"] {
+  outline: 2px solid var(--color-focus);
+  transform: scale(1.1);
+}
+
+.bgSwatch:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
 }

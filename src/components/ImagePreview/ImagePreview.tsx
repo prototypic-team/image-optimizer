@@ -10,6 +10,7 @@ import {
 
 import { Hud } from "~/components/ImagePreview/Hud";
 import { setFormatSettings, setViewport, store } from "~/modules/state";
+import { cn } from "~/pixel";
 import { downloadBlob } from "~/utils/files";
 
 import { Footer } from "./Footer";
@@ -34,6 +35,9 @@ export const ImagePreview: Component = () => {
   const [tx, setTx] = createSignal(0);
   const [ty, setTy] = createSignal(0);
   const [dragging, setDragging] = createSignal(false);
+  const [bgColor, setBgColor] = createSignal<
+    "black" | "gray" | "white" | undefined
+  >(undefined);
 
   let dragStart = { x: 0, y: 0, tx: 0, ty: 0 };
   let prevImageId: string | undefined;
@@ -250,7 +254,7 @@ export const ImagePreview: Component = () => {
           <div class={styles.viewportContainer}>
             <div
               ref={viewportRef}
-              class={styles.viewport}
+              class={cn(styles.viewport, bgColor() && styles[bgColor()!])}
               classList={{ [styles.panning]: dragging() }}
             >
               <Index each={image().formats}>
@@ -285,6 +289,21 @@ export const ImagePreview: Component = () => {
                 />
               )}
             </Index>
+            <div
+              class={styles.bgControl}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {(["white", "gray", "black"] as const).map((color) => (
+                <button
+                  class={styles.bgSwatch}
+                  data-color={color}
+                  data-active={bgColor() === color}
+                  onClick={() => setBgColor(color)}
+                  title={`${color.charAt(0).toUpperCase() + color.slice(1)} background`}
+                  type="button"
+                />
+              ))}
+            </div>
           </div>
         )}
       </Show>
