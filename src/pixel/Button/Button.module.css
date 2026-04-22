@@ -38,6 +38,8 @@
 }
 
 .button:focus {
+  z-index: 3;
+
   outline: none;
 }
 

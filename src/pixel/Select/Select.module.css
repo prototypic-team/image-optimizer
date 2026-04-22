@@ -49,7 +49,7 @@
   outline: none;
 }
 
-.select:focus-visible {
+.select[data-focus-visible="true"] {
   outline: var(--focus-outline);
 }
 

@@ -4,8 +4,10 @@ import "solid-devtools";
 import { render } from "solid-js/web";
 
 import { App } from "./App";
+import { handleKeyDown } from "./pixel";
 
 const root = document.getElementById("root");
+document.addEventListener("keydown", handleKeyDown);
 
 if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
   throw new Error(
